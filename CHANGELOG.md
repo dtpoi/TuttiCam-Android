@@ -1,5 +1,53 @@
 # 更新日志 / Changelog
 
+## v1.3 · 2026-10-15
+
+### 新增
+
+- **DJI 录像模式**：DJI 相机在录像类模式（视频、全景视频、慢动作等）时，开始拍摄自动开始录像，停止拍摄时停止，期间不按单张快门；状态里显示还能录多久。
+- **DJI 休眠**：外接相机页可以让 DJI 相机休眠省电；按相机上任意按键唤醒，醒来后自动重连。
+
+### 改进
+
+- 连上 DJI 相机后不再自动切到全景拍照，保留相机上选好的拍照或录像模式；延时、直播等其他模式仍会切到拍照。
+- 改善连接多台外接相机时的稳定性：逐台连接，连接时暂停扫描，遇到蓝牙错误 133 自动重试；第三台起用均衡连接优先级。
+- 开始页图标按安卓自适应图标规范放大。
+- 已拍摄媒体的空状态在半屏时居中；重新安装 App 前拍的照片会提示到“文件”里查看。
+- 设备页的保存位置链接直接打开系统“文件”App，不再先选应用。
+- 外接相机统一用相机图标。
+
+### 修复
+
+- 开始会话时偶尔显示“相机出错（2）”，或预览正常却一直提示“没有就绪的设备”、无法拍摄。
+
+### 安装
+
+下载下方的 `TuttiCam-v1.3.apk` 覆盖安装，照片和设置都会保留。需要 Android 9 及以上。
+
+---
+
+#### New
+
+- **DJI video mode**: when a DJI camera is in a video mode (video, panorama video, slow motion and more), recording starts when shooting starts and stops when shooting stops, with no single shots in between; the status shows how much recording time is left.
+- **DJI sleep**: put a DJI camera to sleep from the External Cameras page to save battery; press any button on the camera to wake it, and it reconnects automatically.
+
+#### Improvements
+
+- Connecting to a DJI camera no longer switches it to panorama photo; the photo or video mode chosen on the camera is kept. Other modes such as timelapse or livestream are still switched to photo.
+- Improved stability when connecting several external cameras: cameras connect one at a time, scanning pauses while connecting, and Bluetooth error 133 is retried automatically; from the third camera on, a balanced connection priority is used.
+- The start screen icon is larger, following the Android adaptive icon guidelines.
+- The Captured Media empty state is centered in the half-height sheet; photos taken before reinstalling the app point you to the Files app.
+- The save folder link on the Devices page opens the system Files app directly, without asking which app to use.
+- External cameras now all use a camera icon.
+
+#### Fixes
+
+- Starting a session sometimes showed “Camera error (2)”, or kept saying no device was ready even though the preview worked, so nothing was captured.
+
+#### Install
+
+Download `TuttiCam-v1.3.apk` below and install it over the old version; your photos and settings are kept. Requires Android 9 or later.
+
 ## v1.2 · 2026-10-15
 
 ### 新增
