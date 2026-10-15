@@ -1,5 +1,45 @@
 # 更新日志 / Changelog
 
+## v1.1 · 2026-10-15
+
+### 新增
+
+- **检查更新**：关于页新增“检查更新”，查询 GitHub 上的最新正式版，有新版本时可直接打开下载页。只在点按时联网，不附带设备或照片信息。
+- **源代码和官网**：关于页新增 GitHub 源代码（GPL-3.0）和官网 tutticam.com 的链接。
+
+### 改进
+
+- 遥控模式中央的“最小间隔”菜单改为从右侧数值处展开，并标出当前选中的间隔。
+- 精简关于页里外接相机协议来源的说明。
+
+### 修复
+
+- 关于页的商标声明里，App 名称显示成了“%1$s”。
+
+### 安装
+
+下载下方的 `TuttiCam-v1.1.apk` 覆盖安装，照片和设置都会保留。需要 Android 9 及以上。
+
+---
+
+#### New
+
+- **Check for updates**: the About page can now check GitHub for the latest release and open the download page when a new version is out. It only goes online when you tap, and sends no device or photo information.
+- **Source code and website**: the About page now links to the source code on GitHub (GPL-3.0) and to tutticam.com.
+
+#### Improvements
+
+- In remote mode, the Minimum Interval menu now opens from the value on the right and marks the current choice.
+- Shorter notes on the sources of external camera protocols in About.
+
+#### Fixes
+
+- The trademark notice in About showed “%1$s” instead of the app name.
+
+#### Install
+
+Download `TuttiCam-v1.1.apk` below and install it over the old version; your photos and settings are kept. Requires Android 9 or later.
+
 ## v1.0 · 2026-10-15
 
 齐拍即合 TuttiCam 安卓版的第一个正式版。它是 iOS 版的原生移植，可以和 iPhone 在同一个会话里同步拍摄。
