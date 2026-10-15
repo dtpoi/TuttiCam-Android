@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CardColors
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -177,6 +179,13 @@ fun TcSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) 
 }
 
 /** 显示弹层里的分组标题，用主题色小字，与设置页一致。 */
+/** 给出弹层内容的左右边距，和设置页的标题、选项、说明对齐。 */
+val SheetPadding = 24.dp
+
+/** 返回弹层里卡片的颜色：比弹层底色深浅差一档，卡片边缘看得出来，内边距才不显得错位。 */
+@Composable
+fun sheetCardColors(): CardColors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+
 @Composable
 fun SheetSectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = modifier)

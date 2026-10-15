@@ -93,6 +93,8 @@ class CaptureAgent(
         private set
     var lastProblem by mutableStateOf<String?>(null)
         private set
+    /** 记录主机从回报里看不到的问题（保存失败、格式退回），随状态发给主机。 */
+    private var hostProblem: String? = null
     var snapshot by mutableStateOf(MotionMonitor.Snapshot(false, 0.0, null))
         private set
     var live by mutableStateOf<CameraEngine.Live?>(null)
@@ -268,6 +270,7 @@ class CaptureAgent(
         roundsCaptured = 0
         lastOffsetMs = null
         lastProblem = null
+        hostProblem = null
         Log.i(TAG, "开始会话 $session · ${configuredLens?.let(::label)} · ${settings.stability}")
         store.begin(session)
         if (!remoteOnly) store.writeText("session.json", RecordJson.encode(SessionRecord.serializer(), record), session)
@@ -503,13 +506,16 @@ class CaptureAgent(
         val report = RoundReport(round, deviceIndex, missed = false, photos = photos.map { it.report }, error = error)
         roundsCaptured += 1
         lastOffsetMs = photos.mapNotNull { it.report.offsetMs }.maxByOrNull { abs(it) }
-        photos.firstNotNullOfOrNull { it.problem }?.let { lastProblem = it }
+        photos.firstNotNullOfOrNull { it.problem }?.let { lastProblem = it; hostProblem = it }
         onReport?.invoke(report)
         if (!settings.forceSync) roundFolders.remove(round)
         store.save(photos.flatMap { it.files }, photos.mapNotNull { it.metadata }, settings.forceSync, folder) { problem ->
             main.post {
                 saving -= 1
-                if (problem != null) lastProblem = context.getString(R.string.save_failed, problem)
+                if (problem != null) {
+                    lastProblem = context.getString(R.string.save_failed, problem)
+                    hostProblem = lastProblem
+                }
             }
         }
     }
@@ -553,6 +559,7 @@ class CaptureAgent(
             // 遥控模式下连着外接相机才算可以拍。
             cameraReady = if (remoteOnly) accessories.hasConnected else cameraReady,
             cameraError = cameraError,
+            problem = hostProblem,
             lens = configuredLens,
             battery = battery(),
             freeBytes = freeBytes,

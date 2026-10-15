@@ -21,8 +21,8 @@ object UpdateChecker {
         /** 表示有新版本，url 是它的 Release 页面。 */
         data class Available(val version: String, val url: String) : Result
 
-        /** 表示查询失败，如没有网络或 GitHub 打不开。 */
-        data object Failed : Result
+        /** 表示查询失败：code 是 HTTP 状态码（连不上时为空），reason 是 GitHub 给的原因或网络错误。 */
+        data class Failed(val code: Int?, val reason: String) : Result
     }
 
     /** 查询最新正式版，在 IO 线程执行。 */
@@ -34,7 +34,8 @@ object UpdateChecker {
                 connection.readTimeout = 10_000
                 connection.setRequestProperty("Accept", "application/vnd.github+json")
                 connection.setRequestProperty("User-Agent", "TuttiCam-Android/$current")
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) return@runCatching Result.Failed
+                val code = connection.responseCode
+                if (code != HttpURLConnection.HTTP_OK) return@runCatching Result.Failed(code, refusal(connection))
                 val release = Json.parseToJsonElement(connection.inputStream.bufferedReader().use { it.readText() }).jsonObject
                 val tag = release.getValue("tag_name").jsonPrimitive.content
                 val url = release["html_url"]?.jsonPrimitive?.content ?: "$REPO_URL/releases/latest"
@@ -42,7 +43,14 @@ object UpdateChecker {
             } finally {
                 connection.disconnect()
             }
-        }.getOrDefault(Result.Failed)
+        }.getOrElse { Result.Failed(null, it.message?.let { message -> "${it.javaClass.simpleName}: $message" } ?: it.javaClass.simpleName) }
+    }
+
+    /** 读 GitHub 拒绝时的原因，如 “API rate limit exceeded for …”；括号里的补充说明不要。 */
+    private fun refusal(connection: HttpURLConnection): String {
+        val body = runCatching { connection.errorStream?.bufferedReader()?.use { it.readText() } }.getOrNull()
+        val message = body?.let { runCatching { Json.parseToJsonElement(it).jsonObject["message"]?.jsonPrimitive?.content }.getOrNull() }
+        return (message ?: connection.responseMessage ?: "").substringBefore(" (").trim()
     }
 
     /** 按数字逐段比较版本号，如 v1.10 比 1.9 新；标签前面的 v 忽略。 */

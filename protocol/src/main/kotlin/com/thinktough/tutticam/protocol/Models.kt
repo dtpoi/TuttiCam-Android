@@ -257,6 +257,8 @@ data class DeviceStatus(
     val ready: Boolean = true,
     val cameraReady: Boolean = false,
     val cameraError: String? = null,
+    /** 记录主机从回报里看不到的问题，如保存失败、RAW 或 HEIC 退回 JPEG；只有安卓发，iOS 忽略。 */
+    val problem: String? = null,
     val lens: LensConfig? = null,
     /** 记录电量 0…1，未知为 -1。 */
     val battery: Float = -1f,

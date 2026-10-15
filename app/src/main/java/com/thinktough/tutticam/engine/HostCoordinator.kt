@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.thinktough.tutticam.R
@@ -116,6 +117,8 @@ class HostCoordinator(
     val recentScenes = mutableStateListOf<SceneRef>()
     var waitingReason by mutableStateOf<String?>(null)
         private set
+    /** 按设备号记录从机最近一组的问题（错过、缺一路、没回报），下一组顺利时清掉。 */
+    val peerProblems = mutableStateMapOf<Int, String>()
 
     private val sceneRounds = mutableMapOf<String, Int>()
     private var sceneCounter = 1
@@ -212,6 +215,7 @@ class HostCoordinator(
     fun removeOffline(entry: DeviceEntry) {
         if (entry.connected || entry.isHost) return
         devices.removeAll { it.index == entry.index }
+        peerProblems.remove(entry.index)
         if (entry.index in settings.lensOverrides) update(settings.copy(lensOverrides = settings.lensOverrides - entry.index))
     }
 
@@ -296,6 +300,7 @@ class HostCoordinator(
     fun start() {
         running = true
         log.clear()
+        peerProblems.clear()
         lastRoundAt = -100.0
         beginSceneFolder()
     }
@@ -492,9 +497,24 @@ class HostCoordinator(
         }
         val summary = RoundSummary(flight.round, flight.participants.size, delivered.sumOf { it.photos.size }, missed, moving,
             delivered.mapNotNull { it.maxAbsOffsetMs }.maxOrNull(), kept)
+        notePeerProblems(flight)
         Log.i(TAG, "第 ${flight.round} 组结算：${flight.participants.size} 台参与，${summary.photos} 张，错过 $missed，在动 $moving")
         log.add(0, summary)
         if (log.size > 50) log.removeAt(log.lastIndex)
+    }
+
+    /** 记下各从机这一组的问题；主机自己的问题由 CaptureAgent.lastProblem 显示。 */
+    private fun notePeerProblems(flight: InFlight) {
+        for (index in flight.participants - 1) {
+            val report = flight.reports[index]
+            val problem = when {
+                report == null -> context.getString(R.string.round_no_reply, flight.round)
+                report.missed -> context.getString(R.string.round_missed, flight.round, report.error ?: context.getString(R.string.missed_no_photo))
+                report.error != null -> context.getString(R.string.round_partial, flight.round, report.error)
+                else -> null
+            }
+            if (problem != null) peerProblems[index] = problem else peerProblems.remove(index)
+        }
     }
 
     companion object {

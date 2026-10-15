@@ -1,5 +1,6 @@
 package com.thinktough.tutticam.ui.sheets
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Panorama
 import androidx.compose.material.icons.rounded.LinkedCamera
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.BatteryStd
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Schedule
@@ -42,7 +44,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -51,8 +59,11 @@ import com.thinktough.tutticam.app.ScreenshotDemo
 import com.thinktough.tutticam.accessory.brandTitle
 import com.thinktough.tutticam.protocol.AccessoryBrief
 import com.thinktough.tutticam.protocol.CameraBrand
+import com.thinktough.tutticam.storage.MediaLibrary
+import com.thinktough.tutticam.ui.components.SheetPadding
 import com.thinktough.tutticam.ui.components.SheetSectionTitle
 import com.thinktough.tutticam.ui.components.TcSheet
+import com.thinktough.tutticam.ui.components.sheetCardColors
 import com.thinktough.tutticam.engine.DeviceEntry
 import com.thinktough.tutticam.engine.DeviceState
 import com.thinktough.tutticam.engine.HostCoordinator
@@ -64,16 +75,17 @@ import com.thinktough.tutticam.ui.theme.TcColors
 import com.thinktough.tutticam.ui.title
 import java.util.Locale
 
-/** 显示设备页：各设备卡片、外接相机入口和最近几组。 */
+/** 显示设备页：各设备卡片、外接相机入口、最近几组、已拍摄媒体入口和保存位置。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DevicesSheet(host: HostCoordinator, onDismiss: () -> Unit) {
     var editingCode by remember { mutableStateOf<DeviceEntry?>(null) }
     var editingLens by remember { mutableStateOf<DeviceEntry?>(null) }
     var showAccessories by remember { mutableStateOf(ScreenshotDemo.sheet == "accessories") }
+    var showMedia by remember { mutableStateOf(false) }
     val accessories = host.agent.accessories
     TcSheet(onDismiss) {
-        LazyColumn(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SheetPadding, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Text(stringResource(R.string.devices_title, host.devices.size, LanLink.MAX_PEERS), style = MaterialTheme.typography.titleLarge)
@@ -85,7 +97,7 @@ fun DevicesSheet(host: HostCoordinator, onDismiss: () -> Unit) {
             }
             // 放外接相机入口，点开连接页。
             item(key = "accessories") {
-                ElevatedCard(onClick = { showAccessories = true }, modifier = Modifier.fillMaxWidth()) {
+                ElevatedCard(onClick = { showAccessories = true }, modifier = Modifier.fillMaxWidth(), colors = sheetCardColors()) {
                     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Rounded.LinkedCamera, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -108,16 +120,46 @@ fun DevicesSheet(host: HostCoordinator, onDismiss: () -> Unit) {
             }
             // 不按组号做键，因为换场景后组号会重复。
             items(host.log.take(20)) { RoundRow(it) }
-            item {
-                Text(stringResource(R.string.photos_on_each_device), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // 放已拍摄媒体入口，点开按场景浏览本机照片。
+            item(key = "media") {
+                ElevatedCard(onClick = { showMedia = true }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp), colors = sheetCardColors()) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Rounded.PhotoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.media_title), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Text(stringResource(R.string.media_note), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
             }
+            // 在最底下放保存位置，路径是超链接，点开系统“文件”App。
+            item(key = "folder") { SavedFolderLink() }
         }
     }
     editingCode?.let { device -> CodeDialog(host, device) { editingCode = null } }
     editingLens?.let { device -> LensDialog(host, device) { editingLens = null } }
     // 把连接页叠在设备页上面。
     if (showAccessories) AccessoriesSheet(accessories) { showAccessories = false }
+    if (showMedia) MediaSheet(host.agent.store.folder.takeIf { host.agent.running }) { showMedia = false }
+}
+
+/** 显示“本机照片保存在 Documents/TuttiCam”，路径可点。 */
+@Composable
+private fun SavedFolderLink() {
+    val context = LocalContext.current
+    val noApp = stringResource(R.string.no_file_manager)
+    val marker = "\u0000"
+    val (before, after) = stringResource(R.string.saved_folder, marker).split(marker).let { it[0] to it.getOrElse(1) { "" } }
+    val link = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline))
+    val text = buildAnnotatedString {
+        append(before)
+        withLink(LinkAnnotation.Clickable("folder", link) {
+            if (!MediaLibrary.openFolder(context)) Toast.makeText(context, noApp, Toast.LENGTH_SHORT).show()
+        }) { append(MediaLibrary.folderLabel) }
+        append(after)
+    }
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
@@ -131,7 +173,7 @@ private fun DeviceCard(host: HostCoordinator, device: DeviceEntry, onCode: () ->
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     val badSync = (device.errorMs ?: 0.0) > 5
-    ElevatedCard(Modifier.fillMaxWidth()) {
+    ElevatedCard(Modifier.fillMaxWidth(), colors = sheetCardColors()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Surface(onClick = onCode, shape = RoundedCornerShape(10.dp),

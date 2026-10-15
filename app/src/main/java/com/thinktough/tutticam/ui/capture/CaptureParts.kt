@@ -317,6 +317,12 @@ private fun notes(model: AppModel, agent: CaptureAgent): List<String> = buildLis
     if (agent.settings.isLongExposure) add(stringResource(R.string.long_exposure_note))
     if (agent.rawUnavailable) add(stringResource(R.string.raw_unavailable_note, agent.settings.format.withoutRaw.title()))
     agent.lastProblem?.let(::add)
+    // 主机再列出各从机的问题，如 “A02：保存失败：…”。
+    if (host != null) for (device in host.devices) {
+        if (device.isHost || !device.connected) continue
+        listOfNotNull(device.status?.cameraError, device.status?.problem, host.peerProblems[device.index]).distinct()
+            .forEach { add(stringResource(R.string.peer_problem, device.code.text, it)) }
+    }
     addAll(agent.accessories.problems)
 }
 

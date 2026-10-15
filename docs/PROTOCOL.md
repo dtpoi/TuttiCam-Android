@@ -138,6 +138,7 @@ DeviceStatus {                       // 全部字段必填（可选的除外）
   still: Bool, blurPx: Double,
   ready: Bool,                      // 上一组已保存完、外接相机空闲
   cameraReady: Bool, cameraError?: String,
+  problem?: String,                 // 仅安卓：保存失败、格式退回等主机从回报里看不到的问题；iOS 忽略
   lens?: LensConfig,                // 实际在用的镜头
   battery: Float,                   // 0…1，未知为 -1
   freeBytes: Int64,                 // 剩余存储字节

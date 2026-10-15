@@ -163,7 +163,7 @@ private fun UpdateRow(checking: Boolean, result: UpdateChecker.Result?, onClick:
         checking -> stringResource(R.string.update_checking) to colors.onSurfaceVariant
         result is UpdateChecker.Result.Available -> stringResource(R.string.update_available, result.version) to colors.primary
         result == UpdateChecker.Result.Latest -> stringResource(R.string.update_latest) to colors.onSurfaceVariant
-        result == UpdateChecker.Result.Failed -> stringResource(R.string.update_failed) to colors.error
+        result is UpdateChecker.Result.Failed -> stringResource(R.string.update_failed) to colors.error
         else -> null
     }
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = 24.dp, vertical = 8.dp),
@@ -171,6 +171,11 @@ private fun UpdateRow(checking: Boolean, result: UpdateChecker.Result?, onClick:
         Column(Modifier.weight(1f)) {
             Text(stringResource(R.string.check_updates), style = MaterialTheme.typography.bodyLarge)
             if (status != null) Text(status.first, style = MaterialTheme.typography.bodySmall, color = status.second)
+            // 失败时写出拒绝代码和原因，如 “HTTP 403 · API rate limit exceeded for …”。
+            if (!checking && result is UpdateChecker.Result.Failed) {
+                Text(listOfNotNull(result.code?.let { "HTTP $it" }, result.reason.ifEmpty { null }).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 3)
+            }
         }
         when {
             checking -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)

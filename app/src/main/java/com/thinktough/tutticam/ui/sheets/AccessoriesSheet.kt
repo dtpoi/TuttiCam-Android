@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -48,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,8 +81,10 @@ import com.thinktough.tutticam.accessory.pairingSteps
 import com.thinktough.tutticam.protocol.CameraBrand
 import com.thinktough.tutticam.protocol.DeviceCode
 import com.thinktough.tutticam.protocol.accessory.verified
+import com.thinktough.tutticam.ui.components.SheetPadding
 import com.thinktough.tutticam.ui.components.SheetSectionTitle
 import com.thinktough.tutticam.ui.components.TcSheet
+import com.thinktough.tutticam.ui.components.sheetCardColors
 import com.thinktough.tutticam.ui.theme.TcColors
 import java.util.Locale
 
@@ -97,7 +101,7 @@ fun AccessoriesSheet(hub: AccessoryHub, onDismiss: () -> Unit) {
     val context = LocalContext.current
 
     TcSheet(onDismiss) {
-        LazyColumn(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding(), contentPadding = PaddingValues(16.dp),
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding(), contentPadding = PaddingValues(horizontal = SheetPadding, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item(key = "title") {
                 Text(stringResource(R.string.external_cameras), style = MaterialTheme.typography.titleLarge)
@@ -106,7 +110,7 @@ fun AccessoriesSheet(hub: AccessoryHub, onDismiss: () -> Unit) {
                 Notice(Icons.Rounded.Warning, stringResource(R.string.acc_mount_reminder), sheetTone(TcColors.MovingOrange, TcColors.MovingOrangeOnLight))
             }
             if (!granted) item(key = "permission") {
-                ElevatedCard(Modifier.fillMaxWidth()) {
+                ElevatedCard(Modifier.fillMaxWidth(), colors = sheetCardColors()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(stringResource(R.string.acc_permission_note), style = MaterialTheme.typography.bodyMedium)
                         FilledTonalButton({ permission.launch(AccessoryLink.PERMISSIONS) }) { Text(stringResource(R.string.allow)) }
@@ -118,9 +122,18 @@ fun AccessoriesSheet(hub: AccessoryHub, onDismiss: () -> Unit) {
             }
 
             item(key = "mine") { SheetSectionTitle(stringResource(R.string.acc_my_cameras), Modifier.padding(top = 12.dp)) }
-            if (hub.cameras.isEmpty()) item(key = "mine-empty") { Muted(stringResource(R.string.acc_none_yet)) }
-            items(hub.cameras, key = { "camera-${it.id}" }) { camera -> CameraCard(hub, camera) { editing = camera } }
-            item(key = "mine-note") { Footnote(stringResource(R.string.acc_my_cameras_note)) }
+            // 没有相机时把空状态和说明放进卡片；有相机时每台各是一张卡片，说明放在下面。
+            if (hub.cameras.isEmpty()) {
+                item(key = "mine-empty") {
+                    SectionCard {
+                        Muted(stringResource(R.string.acc_none_yet), Modifier.padding(horizontal = 16.dp))
+                        Footnote(stringResource(R.string.acc_my_cameras_note), Modifier.padding(horizontal = 16.dp))
+                    }
+                }
+            } else {
+                items(hub.cameras, key = { "camera-${it.id}" }) { camera -> CameraCard(hub, camera) { editing = camera } }
+                item(key = "mine-note") { Footnote(stringResource(R.string.acc_my_cameras_note)) }
+            }
 
             item(key = "nearby") {
                 Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -128,15 +141,18 @@ fun AccessoriesSheet(hub: AccessoryHub, onDismiss: () -> Unit) {
                     if (hub.scanning && granted) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                 }
             }
-            // 列表已由蓝牙层排除正在连接的相机。
-            val nearby = hub.discovered
-            if (nearby.isEmpty()) {
-                item(key = "nearby-empty") {
-                    Muted(stringResource(if (hub.scanning && granted) R.string.acc_searching else R.string.acc_none_found))
+            // 把找到的相机（或“正在查找”）和说明放进同一张卡片；列表已由蓝牙层排除正在连接的相机。
+            item(key = "nearby-list") {
+                val nearby = hub.discovered
+                SectionCard {
+                    if (nearby.isEmpty()) {
+                        Muted(stringResource(if (hub.scanning && granted) R.string.acc_searching else R.string.acc_none_found),
+                            Modifier.padding(horizontal = 16.dp))
+                    }
+                    for (found in nearby) key(found.address) { FoundRow(found) { hub.connect(found.address) } }
+                    Footnote(stringResource(R.string.acc_nearby_note), Modifier.padding(horizontal = 16.dp))
                 }
             }
-            items(nearby, key = { "found-${it.address}" }) { found -> FoundRow(found) { hub.connect(found.address) } }
-            item(key = "nearby-note") { Footnote(stringResource(R.string.acc_nearby_note)) }
 
             item(key = "brands") { SheetSectionTitle(stringResource(R.string.acc_how_to_pair), Modifier.padding(top = 12.dp)) }
             items(CameraBrand.entries, key = { "brand-${it.raw}" }) { brand ->
@@ -169,7 +185,7 @@ fun AccessoriesSheet(hub: AccessoryHub, onDismiss: () -> Unit) {
 private fun CameraCard(hub: AccessoryHub, camera: AccessoryHub.Camera, onEdit: () -> Unit) {
     val context = LocalContext.current
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
-    ElevatedCard(Modifier.fillMaxWidth()) {
+    ElevatedCard(Modifier.fillMaxWidth(), colors = sheetCardColors()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 // 点编号可修改名字和编号。
@@ -267,7 +283,7 @@ private fun PairingCode(code: Int) {
 @Composable
 private fun FoundRow(found: AccessoryDiscovery, onConnect: () -> Unit) {
     val context = LocalContext.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onConnect).heightIn(min = 56.dp).padding(vertical = 4.dp),
+    Row(Modifier.fillMaxWidth().clickable(onClick = onConnect).heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(if (found.name.contains("360")) Icons.Rounded.Panorama else Icons.Rounded.CameraAlt, contentDescription = null,
             tint = MaterialTheme.colorScheme.primary)
@@ -324,13 +340,21 @@ private fun LabelDialog(hub: AccessoryHub, camera: AccessoryHub.Camera, onDismis
 }
 
 @Composable
-private fun Muted(text: String) {
-    Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+private fun Muted(text: String, modifier: Modifier = Modifier) {
+    Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = modifier.padding(vertical = 4.dp))
 }
 
 @Composable
-private fun Footnote(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun Footnote(text: String, modifier: Modifier = Modifier) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = modifier)
+}
+
+/** 把一节的内容放进和设备卡片同色的卡片里，内容自己留左右边距，点按的行能铺满卡片宽度。 */
+@Composable
+private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
+    ElevatedCard(Modifier.fillMaxWidth(), colors = sheetCardColors()) {
+        Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp), content = content)
+    }
 }
 
 @Composable
