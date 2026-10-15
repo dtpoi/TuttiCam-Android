@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.SettingsRemote
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material3.DropdownMenu
@@ -338,20 +339,24 @@ private fun RemoteRhythm(host: HostCoordinator, modifier: Modifier) {
                         SegmentedButtonDefaults.itemShape(i, StabilityMode.entries.size)) { Text(mode.title(), maxLines = 1) }
                 }
             }
-            Box {
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable { open = true },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(stringResource(R.string.min_interval), color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                    Text(Format.seconds(context, s.minInterval), color = Chrome.Accent, fontSize = 16.sp, fontWeight = FontWeight.Medium,
-                        style = TextStyle(fontFeatureSettings = "tnum"))
-                    Icon(Icons.Rounded.UnfoldMore, contentDescription = null, tint = Chrome.Accent, modifier = Modifier.size(18.dp))
-                }
-                DropdownMenu(open, { open = false }) {
-                    for (choice in CaptureSettings.intervalChoices) {
-                        DropdownMenuItem(text = { Text(Format.seconds(context, choice)) },
-                            onClick = { open = false; host.update(host.settings.copy(minInterval = choice)) })
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable { open = true },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.min_interval), color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                // 让菜单从右侧数值下方展开。
+                Box {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(Format.seconds(context, s.minInterval), color = Chrome.Accent, fontSize = 16.sp, fontWeight = FontWeight.Medium,
+                            style = TextStyle(fontFeatureSettings = "tnum"))
+                        Icon(Icons.Rounded.UnfoldMore, contentDescription = null, tint = Chrome.Accent, modifier = Modifier.size(18.dp))
+                    }
+                    DropdownMenu(open, { open = false }) {
+                        for (choice in CaptureSettings.intervalChoices) {
+                            DropdownMenuItem(text = { Text(Format.seconds(context, choice)) },
+                                trailingIcon = { if (choice == s.minInterval) Icon(Icons.Rounded.Check, contentDescription = null) },
+                                onClick = { open = false; host.update(host.settings.copy(minInterval = choice)) })
+                        }
                     }
                 }
             }
