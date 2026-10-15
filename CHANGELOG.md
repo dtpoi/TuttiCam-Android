@@ -1,5 +1,39 @@
 # 更新日志 / Changelog
 
+## v1.2 · 2026-10-15
+
+### 新增
+
+- **已拍摄媒体**：设备页新增“已拍摄媒体”，按场景浏览本机照片，显示封面、张数、大小和时间。点进去看缩略图，再点全屏翻看，显示偏差、模糊和是否在动；底部进度条从这个场景的第一张拖到最后一张，快速翻看。可以分享、删除单张照片或整个场景。
+- **打开保存文件夹**：设备页最底下的 Documents/TuttiCam 可以点，直接在系统“文件”App 里打开。
+- **从机问题提示**：主机取景器上的提示会列出各从机的问题，如“A02：保存失败：…”，包括相机出错、保存失败、错过某组和没有回报。保存失败要从机也更新到 v1.2 才会报告。
+
+### 改进
+
+- 检查更新失败时显示 HTTP 状态码和原因，如“HTTP 403 · API rate limit exceeded”。
+- 设备、外接相机、已拍摄媒体三页的左右边距和设置页对齐；卡片换成看得出边缘的底色，外接相机页的空状态和说明也放进卡片。
+
+### 安装
+
+下载下方的 `TuttiCam-v1.2.apk` 覆盖安装，照片和设置都会保留。需要 Android 9 及以上。
+
+---
+
+#### New
+
+- **Captured Media**: the Devices page now has Captured Media, which lists this phone's photos by scene with a cover, photo count, size and time. Open a scene for thumbnails, then a photo to view it full screen with offset, blur and moving status; drag the bar at the bottom to scrub from the scene's first photo to its last. Share or delete single photos or whole scenes.
+- **Open the save folder**: tap Documents/TuttiCam at the bottom of the Devices page to open it in the system Files app.
+- **Client problems on the host**: the hints on the host's viewfinder now list each client's problems, such as “A02: Save failed: …”, including camera errors, save failures, missed rounds and missing reports. Save failures are reported only when the client is also on v1.2.
+
+#### Improvements
+
+- When the update check fails, the HTTP status code and reason are shown, such as “HTTP 403 · API rate limit exceeded”.
+- The Devices, External Cameras and Captured Media pages now use the same side margins as Settings; cards have a background that shows their edges, and the empty states on External Cameras sit in cards too.
+
+#### Install
+
+Download `TuttiCam-v1.2.apk` below and install it over the old version; your photos and settings are kept. Requires Android 9 or later.
+
 ## v1.1 · 2026-10-15
 
 ### 新增

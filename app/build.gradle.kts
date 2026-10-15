@@ -14,8 +14,8 @@ android {
         applicationId = "com.thinktough.tutticam"
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     // 发布签名从环境变量读取（CI 用仓库 Secrets），没有时生成未签名的 release 包。
