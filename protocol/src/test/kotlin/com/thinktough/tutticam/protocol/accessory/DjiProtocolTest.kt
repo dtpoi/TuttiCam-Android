@@ -81,10 +81,15 @@ class DjiProtocolTest {
         val out = session.receive(cameraRequest.copyOfRange(0, 10)) + session.receive(cameraRequest.copyOfRange(10, cameraRequest.size))
         assertTrue(OsmoSession.Output.PhaseChanged(OsmoSession.Phase.Connected("Osmo 360", 0xFF66)) in out)
         val sent = out.filterIsInstance<OsmoSession.Output.Send>().mapNotNull { DjiProtocol.decode(it.bytes) }
-        assertEquals(3, sent.size)
+        assertEquals(2, sent.size, "连上后只应答和订阅状态，不切相机模式")
         assertTrue(sent[0].isAck && sent[0].seq == 300 && sent[0].payload[4].toInt() == 0 && sent[0].payload[5].toInt() == 1)
         assertTrue(sent[1].cmdSet == 0x1D && sent[1].cmdId == 0x05 && sent[1].payload[0].toInt() == 3)
-        assertTrue(sent[2].cmdSet == 0x1D && sent[2].cmdId == 0x04 && (sent[2].payload[4].toInt() and 0xFF) == 0x3F)
+
+        // 拍录控制照抄官方示例：device_id 0x33FF0000，0 开始、1 停止，保留字节全 0。
+        val record = assertNotNull(session.record(true)?.let(DjiProtocol::decode))
+        assertTrue(record.cmdSet == 0x1D && record.cmdId == 0x03)
+        assertContentEquals(bytes(0x00, 0x00, 0xFF, 0x33, 0x00, 0x00, 0x00, 0x00, 0x00), record.payload)
+        assertEquals(1, assertNotNull(session.record(false)?.let(DjiProtocol::decode)).payload[4].toInt())
 
         val shutter = assertNotNull(session.shutter()?.let(DjiProtocol::decode))
         assertTrue(shutter.cmdId == 0x11 && shutter.payload.contentEquals(OsmoCommand.shutterClick))

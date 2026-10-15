@@ -11,6 +11,7 @@ import com.thinktough.tutticam.protocol.accessory.GoProCommand
 import com.thinktough.tutticam.protocol.accessory.GoProUuid
 import com.thinktough.tutticam.protocol.accessory.NikonPairing
 import com.thinktough.tutticam.protocol.accessory.NikonUuid
+import com.thinktough.tutticam.protocol.accessory.OsmoCommand
 import com.thinktough.tutticam.protocol.accessory.OsmoSession
 import com.thinktough.tutticam.protocol.accessory.OsmoStatus
 import com.thinktough.tutticam.protocol.accessory.RicohUuid
@@ -76,6 +77,12 @@ abstract class CameraDriver {
     open fun shutter(io: DriverIO): Boolean = false
     /** 每秒调用一次，用于保活等。 */
     open fun tick(io: DriverIO) {}
+    /** 表示能用命令让相机休眠，目前只有 DJI；唤醒要按相机上的按键。 */
+    open val canSleep: Boolean = false
+    /** 让相机休眠，没发出时返回 false。 */
+    open fun sleep(io: DriverIO): Boolean = false
+    /** 通知开始或停止拍摄；录像模式的 DJI 据此开录、停录。 */
+    open fun shooting(on: Boolean, io: DriverIO) {}
 
     fun wrote(characteristic: UUID, error: String?, io: DriverIO) {
         if (error != null) {
@@ -141,8 +148,10 @@ abstract class CameraDriver {
 
 /** 把 DJI 状态换成通用的外接相机状态。 */
 fun djiAccessoryStatus(s: OsmoStatus) = AccessoryStatus(
-    battery = s.battery, remainPhotos = s.remainPhotos.toInt(), capturing = s.capturing, warm = s.temperature == 1,
-    tooHot = s.tooHot, sleeping = s.sleeping, wrongMode = if (s.photoMode) null else s.mode, djiMode = s.mode, photoSize = s.photoSizeTitle,
+    battery = s.battery, remainPhotos = if (s.videoMode) null else s.remainPhotos.toInt(),
+    remainMinutes = if (s.videoMode) (s.remainSeconds / 60).toInt() else null, capturing = s.capturing, warm = s.temperature == 1,
+    tooHot = s.tooHot, sleeping = s.sleeping, wrongMode = if (s.photoMode || s.videoMode) null else s.mode, djiMode = s.mode,
+    photoSize = s.photoSizeTitle, video = s.videoMode,
 )
 
 /** 驱动 DJI 相机，协议细节由 OsmoSession 处理。 */
@@ -157,6 +166,59 @@ class DjiDriver(identity: RemoteIdentity, cameraNumber: Int) : CameraDriver() {
     private val sentAt = mutableMapOf<Int, Double>()
     /** 标记相机在休眠，DJI 要求休眠时不发数据以免堵塞。 */
     private var sleeping = false
+    private var lastStatus: OsmoStatus? = null
+    private var model: String? = null
+    /** 记录主机是否在拍摄。 */
+    private var shooting = false
+    /** 标记录像是本 App 开的，停止拍摄时只停自己开的。 */
+    private var recording = false
+    private var modeChecked = false
+
+    override val canSleep = true
+
+    override fun shooting(on: Boolean, io: DriverIO) {
+        shooting = on
+        syncRecording(io)
+    }
+
+    /** 录像模式下按拍摄状态开录、停录；拍摄中切到录像模式或重连上来也会开录。 */
+    private fun syncRecording(io: DriverIO) {
+        val status = lastStatus ?: return
+        if (sleeping) return
+        when {
+            shooting && status.videoMode && !recording && !status.capturing -> record(true, io)
+            !shooting && recording -> record(false, io)
+            // 用户切回拍照模式时相机自己会停。
+            !status.videoMode && recording -> recording = false
+        }
+    }
+
+    private fun record(start: Boolean, io: DriverIO) {
+        val bytes = session.record(start) ?: return
+        io.write(bytes, COMMAND, fast = true)
+        recording = start
+        io.log(if (start) "DJI：录像模式，开始录像" else "DJI：停止录像")
+    }
+
+    /** 连上后看一次模式：拍照、录像都照用；延时、直播等其他模式切到拍照，Osmo 360 用全景拍照。 */
+    private fun checkMode(status: OsmoStatus, io: DriverIO) {
+        if (modeChecked) return
+        modeChecked = true
+        if (status.photoMode || status.videoMode) return
+        val mode = if (model == "Osmo 360") OsmoCommand.Mode.PANORAMA_PHOTO else OsmoCommand.Mode.PHOTO
+        session.switchMode(mode)?.let { io.write(it, COMMAND, fast = true) }
+    }
+
+    override fun sleep(io: DriverIO): Boolean {
+        if (sleeping) return false
+        val bytes = session.sleep() ?: return false
+        io.write(bytes, COMMAND, fast = true)
+        // 先当作已休眠，不再给相机发数据；唤醒后状态推送会改回来。
+        sleeping = true
+        lastStatus?.let { io.status(djiAccessoryStatus(it.copy(powerMode = OsmoCommand.PowerMode.SLEEP))) }
+        io.log("DJI：已请求休眠")
+        return true
+    }
 
     override val services = listOf(SERVICE)
 
@@ -180,6 +242,8 @@ class DjiDriver(identity: RemoteIdentity, cameraNumber: Int) : CameraDriver() {
             io.log("DJI：相机休眠中，跳过这次快门")
             return false
         }
+        // 录像模式在开始、停止拍摄时开录、停录，每组不按快门，免得把录像停掉。
+        if (lastStatus?.videoMode == true) return false
         val bytes = session.shutter() ?: return false
         sentAt[DjiProtocol.readLe16(bytes, 8)] = MonoClock.now()
         if (sentAt.size > 20) sentAt.clear()
@@ -194,14 +258,21 @@ class DjiDriver(identity: RemoteIdentity, cameraNumber: Int) : CameraDriver() {
                 is OsmoSession.Output.PhaseChanged -> when (val phase = output.phase) {
                     OsmoSession.Phase.Idle -> Unit
                     is OsmoSession.Phase.WaitingForCamera -> if (!io.paired) io.confirming(phase.code)
-                    is OsmoSession.Phase.Connected ->
+                    is OsmoSession.Phase.Connected -> {
+                        model = phase.model
                         io.connected(phase.model ?: io.text(R.string.acc_dji_camera_id, "0x%04X".format(phase.cameraDeviceId and 0xFFFF)))
+                    }
                     OsmoSession.Phase.Rejected -> io.rejected()
                     is OsmoSession.Phase.Failed -> io.fail(io.text(R.string.acc_dji_refused, phase.returnCode))
                 }
                 is OsmoSession.Output.Status -> {
+                    lastStatus = output.status
                     sleeping = output.status.sleeping
                     io.status(djiAccessoryStatus(output.status))
+                    if (!sleeping) {
+                        checkMode(output.status, io)
+                        syncRecording(io)
+                    }
                 }
                 is OsmoSession.Output.ShutterAck -> sentAt.remove(output.seq)?.let { io.shutterRtt((MonoClock.now() - it) * 1000) }
             }

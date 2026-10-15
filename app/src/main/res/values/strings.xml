@@ -233,6 +233,10 @@
     <string name="dji_mode_photo">Photo</string>
     <string name="dji_mode_panorama_video">Panorama Video</string>
     <string name="dji_mode_video">Video</string>
+    <string name="dji_mode_slow_motion">Slow Motion</string>
+    <string name="dji_mode_low_light_video">Low-Light Video</string>
+    <string name="dji_mode_ultra_wide_video">Ultra-Wide Video</string>
+    <string name="acc_video_note">Video mode: recording starts when shooting starts and stops when it stops; no single shots are taken in between.</string>
     <string name="dji_mode_other">Other mode %1$s</string>
     <string name="acc_wrong_photo_mode">Not in photo mode (%1$s)</string>
     <string name="acc_wrong_shoot_mode">Not in shooting mode</string>
@@ -267,6 +271,8 @@
     <string name="acc_forget_rescan">Forget and Rescan</string>
     <string name="acc_untested">Not Tested on Hardware</string>
     <string name="acc_remaining">%1$d left</string>
+    <string name="acc_remaining_minutes">Video: %1$dm left</string>
+    <string name="acc_remaining_hours">Video: %1$dh %2$02dm left</string>
     <string name="acc_rtt">RTT %1$s ms</string>
     <string name="acc_name">Name</string>
     <string name="acc_name_placeholder">If left blank, shows %1$s</string>
@@ -286,6 +292,7 @@
     <string name="remote_mount_note">External cameras connected here can\'t detect stillness on their own; mount them on the same rig</string>
     <string name="acc_none_found">No cameras found</string>
     <string name="acc_wake">Press any button on the camera to wake it; it resumes automatically. No shutter is sent while it\'s asleep.</string>
+    <string name="acc_sleep">Sleep</string>
     <string name="acc_hot">Camera overheated; can\'t shoot for now</string>
     <string name="acc_warm">Camera is running warm</string>
     <string name="acc_verified">Tested on Hardware</string>
@@ -369,6 +376,7 @@
     <string name="no_file_manager">No app can open this folder</string>
     <string name="media_empty">No Photos Yet</string>
     <string name="media_empty_note">Once you start shooting, photos will be organized by scene here</string>
+    <string name="media_orphan_note">Photos taken before the app was reinstalled aren\'t listed here. You can find them in %1$s.</string>
     <string name="media_current_scene">Current Scene</string>
     <string name="media_folder_summary">Photos: %1$d · %2$s · %3$s</string>
     <string name="media_delete">Delete</string>

@@ -233,6 +233,10 @@
     <string name="dji_mode_photo">写真</string>
     <string name="dji_mode_panorama_video">パノラマ動画</string>
     <string name="dji_mode_video">動画</string>
+    <string name="dji_mode_slow_motion">スローモーション</string>
+    <string name="dji_mode_low_light_video">低照度動画</string>
+    <string name="dji_mode_ultra_wide_video">超広角動画</string>
+    <string name="acc_video_note">動画モード：撮影開始時に録画を始め、停止時に止めます。その間は単写シャッターを押しません。</string>
     <string name="dji_mode_other">その他のモード %1$s</string>
     <string name="acc_wrong_photo_mode">写真モードではありません（%1$s）</string>
     <string name="acc_wrong_shoot_mode">撮影モードではありません</string>
@@ -267,6 +271,8 @@
     <string name="acc_forget_rescan">削除して再スキャン</string>
     <string name="acc_untested">実機未検証</string>
     <string name="acc_remaining">残り%1$d枚</string>
+    <string name="acc_remaining_minutes">録画残り%1$d分</string>
+    <string name="acc_remaining_hours">録画残り%1$d時間%2$d分</string>
     <string name="acc_rtt">往復 %1$s ms</string>
     <string name="acc_name">名前</string>
     <string name="acc_name_placeholder">空欄の場合は %1$s と表示</string>
@@ -286,6 +292,7 @@
     <string name="remote_mount_note">この端末に接続した外部カメラは自分で静止判定できないため、同じリグに固定してください</string>
     <string name="acc_none_found">カメラが見つかりません</string>
     <string name="acc_wake">カメラのいずれかのボタンを押すとスリープが解除され、自動的に復帰します。スリープ中はシャッターを送りません。</string>
+    <string name="acc_sleep">スリープ</string>
     <string name="acc_hot">カメラが過熱しているため、しばらく撮影できません</string>
     <string name="acc_warm">カメラの温度が高めです</string>
     <string name="acc_verified">実機検証済み</string>
@@ -369,6 +376,7 @@
     <string name="no_file_manager">フォルダを開けるアプリがありません</string>
     <string name="media_empty">まだ写真がありません</string>
     <string name="media_empty_note">撮影を始めると、写真がシーンごとにここに保存されます</string>
+    <string name="media_orphan_note">アプリを再インストールする前に撮った写真はここに表示されません。%1$s で確認できます。</string>
     <string name="media_current_scene">現在のシーン</string>
     <string name="media_folder_summary">%1$d枚 · %2$s · %3$s</string>
     <string name="media_delete">削除</string>

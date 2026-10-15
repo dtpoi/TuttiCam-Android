@@ -233,6 +233,10 @@
     <string name="dji_mode_photo">拍照</string>
     <string name="dji_mode_panorama_video">全景视频</string>
     <string name="dji_mode_video">视频</string>
+    <string name="dji_mode_slow_motion">慢动作</string>
+    <string name="dji_mode_low_light_video">低光视频</string>
+    <string name="dji_mode_ultra_wide_video">极广角视频</string>
+    <string name="acc_video_note">录像模式：开始拍摄时开始录像，停止拍摄时停止，期间不按单张快门。</string>
     <string name="dji_mode_other">其他模式 %1$s</string>
     <string name="acc_wrong_photo_mode">不在拍照模式（%1$s）</string>
     <string name="acc_wrong_shoot_mode">不在拍摄模式</string>
@@ -267,6 +271,8 @@
     <string name="acc_forget_rescan">忘记并重新扫描</string>
     <string name="acc_untested">未实机测试</string>
     <string name="acc_remaining">剩%1$d张</string>
+    <string name="acc_remaining_minutes">可录%1$d分钟</string>
+    <string name="acc_remaining_hours">可录%1$d小时%2$d分</string>
     <string name="acc_rtt">往返 %1$s ms</string>
     <string name="acc_name">名称</string>
     <string name="acc_name_placeholder">不填则显示 %1$s</string>
@@ -286,6 +292,7 @@
     <string name="remote_mount_note">本机连接的外接相机无法自行做静止判定，请固定在同一支架上</string>
     <string name="acc_none_found">没有找到相机</string>
     <string name="acc_wake">按相机上任意按键即可唤醒，唤醒后会自动恢复；休眠期间不会给它发快门。</string>
+    <string name="acc_sleep">休眠</string>
     <string name="acc_hot">相机过热，暂时不能拍</string>
     <string name="acc_warm">相机温度偏高</string>
     <string name="acc_verified">已实机验证</string>
@@ -369,6 +376,7 @@
     <string name="no_file_manager">没有可以打开文件夹的应用</string>
     <string name="media_empty">还没有拍摄的照片</string>
     <string name="media_empty_note">开始拍摄后，照片会按场景存放在这里</string>
+    <string name="media_orphan_note">重新安装 App 之前拍的照片不会列在这里，可以在 %1$s 里查看。</string>
     <string name="media_current_scene">当前场景</string>
     <string name="media_folder_summary">%1$d 张 · %2$s · %3$s</string>
     <string name="media_delete">删除</string>

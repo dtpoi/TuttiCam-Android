@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -55,6 +56,9 @@ import com.thinktough.tutticam.R
 import com.thinktough.tutticam.app.AppModel
 import com.thinktough.tutticam.app.ClientLink
 
+/** 给出开始页图标的可见大小，等于自适应图标中间 72dp 那块放大后的尺寸。 */
+private val LOGO_SIZE = 120.dp
+
 /** 显示开始页：设备名、创建会话、遥控模式、加入会话。 */
 @Composable
 fun StartScreen(model: AppModel) {
@@ -71,8 +75,11 @@ fun StartScreen(model: AppModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Spacer(Modifier.heightIn(min = 24.dp))
-            Icon(painterResource(R.drawable.ic_launcher_monochrome), contentDescription = null, tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(88.dp).align(Alignment.CenterHorizontally))
+            // 按自适应图标规范：图层 108dp，桌面只显示中间 72dp；这里同样只占中间这块，图标才不会显得小。
+            Box(Modifier.size(LOGO_SIZE).align(Alignment.CenterHorizontally), contentAlignment = Alignment.Center) {
+                Icon(painterResource(R.drawable.ic_launcher_monochrome), contentDescription = null, tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.requiredSize(LOGO_SIZE * 108f / 72f))
+            }
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.displaySmall,
                 modifier = Modifier.align(Alignment.CenterHorizontally))
             Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,

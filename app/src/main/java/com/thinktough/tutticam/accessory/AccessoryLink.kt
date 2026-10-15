@@ -126,6 +126,8 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
         val number: Int,
         val driver: CameraDriver,
         override val paired: Boolean,
+        /** 记录新相机因蓝牙错误 133 重连到第几次。 */
+        val attempt: Int = 0,
     ) : DriverIO {
         var gatt: BluetoothGatt? = null
         var phase: AccessoryPhase = AccessoryPhase.Connecting
@@ -287,9 +289,13 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
             override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
                 if (gatt !== g) return
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    log("蓝牙已连接，协商 MTU")
-                    // 先调大 MTU（DJI 连接请求有 51 字节），再提高连接优先级降低延迟。
-                    if (!g.requestMtu(247)) g.discoverServices()
+                    // 配对过的相机在后台连上后也要排队，等前一台握手完再协商。
+                    beginSetup(id) {
+                        if (!isCurrent(this@Connection) || gatt !== g) return@beginSetup endSetup(id)
+                        log("蓝牙已连接，协商 MTU")
+                        // 先调大 MTU（DJI 连接请求有 51 字节），再调连接优先级。
+                        if (!g.requestMtu(247)) g.discoverServices()
+                    }
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     log("蓝牙断开（结果 $status）")
                     g.close()
@@ -300,7 +306,10 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
             override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
                 if (gatt !== g) return
                 log("MTU $mtu")
-                g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+                // 前两台用高优先级降低快门延迟；第三台起用均衡，几条高频连接一起会挤占空口，后连的容易报 133。
+                val others = connections.values.count { it !== this@Connection && it.isConnected }
+                g.requestConnectionPriority(if (others >= HIGH_PRIORITY_LIMIT) BluetoothGatt.CONNECTION_PRIORITY_BALANCED
+                else BluetoothGatt.CONNECTION_PRIORITY_HIGH)
                 g.discoverServices()
             }
 
@@ -378,6 +387,11 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
     private val deadlines = mutableMapOf<String, Runnable>()
     /** 列出停止自动重连的相机，等用户选择重新连接或忘记。 */
     private val stopped = mutableSetOf<String>()
+    /** 记录本机是否在拍摄。 */
+    private var shooting = false
+    /** 记录正在建立连接的相机，同一时间只有一台；其余在 setupQueue 里排队，见 beginSetup。 */
+    private var settingUp: String? = null
+    private val setupQueue = ArrayDeque<Pair<String, () -> Unit>>()
     private val identity = RemoteIdentity.load(context)
     private var started = false
 
@@ -484,6 +498,7 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
         saveKnown()
         deadlines.remove(id)?.let(thread::removeCallbacks)
         stopped.remove(id)
+        endSetup(id)
         connections.remove(id)?.let { c ->
             c.gatt?.disconnect()
             c.gatt?.close()
@@ -514,6 +529,18 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
         }
         timers[key] = runnable
         thread.postDelayed(runnable, maxOf(0L, ((time - 0.004 - MonoClock.now()) * 1000).toLong()))
+    }
+
+    /** 通知各相机开始或停止拍摄；之后连上的相机也会收到，录像模式的 DJI 据此开录、停录。 */
+    fun setShooting(on: Boolean) = thread.post {
+        shooting = on
+        for (connection in connections.values) if (connection.isConnected) connection.driver.shooting(on, connection)
+    }
+
+    /** 让相机休眠，只对支持的相机（DJI）有效。 */
+    fun sleep(id: String) = thread.post {
+        val connection = connections[id]?.takeIf { it.isConnected && it.driver.canSleep } ?: return@post
+        connection.driver.sleep(connection)
     }
 
     fun cancelPending() = thread.post {
@@ -550,6 +577,8 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
             adapter == null -> handler(AccessoryEvent.Bluetooth(context.getString(R.string.acc_bt_unsupported)))
             !adapter.isEnabled -> {
                 scanning = false
+                settingUp = null
+                setupQueue.clear()
                 // 蓝牙关闭时清掉连接，配对过的等蓝牙打开后重连。
                 for (connection in connections.values.toList()) {
                     if (connection.id in stopped) continue
@@ -593,7 +622,7 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
         }
         val needsRescan = known.any { (it.kind == CameraKind.NikonRemote || it.kind == CameraKind.FujifilmSecure) &&
             connections[it.id]?.isConnected != true && it.id !in stopped }
-        val want = wantScan || needsRescan
+        val want = (wantScan || needsRescan) && settingUp == null
         if (want && !scanning) {
             runCatching {
                 scanner.startScan(null, ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scanCallback)
@@ -636,7 +665,8 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
             .sortedByDescending { it.rssi }))
     }
 
-    private fun open(id: String, device: BluetoothDevice, kind: CameraKind, name: String, ad: Advertisement?, autoConnect: Boolean) {
+    private fun open(id: String, device: BluetoothDevice, kind: CameraKind, name: String, ad: Advertisement?, autoConnect: Boolean,
+                     attempt: Int = 0) {
         stopped.remove(id)
         connections[id]?.let { old ->
             old.gatt?.disconnect()
@@ -644,15 +674,52 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
         }
         val entry = known.firstOrNull { it.id == id }
         val number = number(id)
-        val connection = Connection(id, device, kind, name, number, makeDriver(kind, entry?.secret, ad, number), paired = entry != null)
+        val connection = Connection(id, device, kind, name, number, makeDriver(kind, entry?.secret, ad, number), paired = entry != null, attempt)
         connections[id] = connection
         handler(AccessoryEvent.Phase(id, kind, name, number, AccessoryPhase.Connecting))
-        // 配对过的相机用自动连接且不设期限，新相机要在 30 秒内连上。
-        if (!autoConnect) arm(id, CONNECT_TIMEOUT)
-        connection.gatt = device.connectGatt(context, autoConnect, connection.callback, BluetoothDevice.TRANSPORT_LE,
-            BluetoothDevice.PHY_LE_1M_MASK, thread)
+        fun connect() {
+            connection.gatt = device.connectGatt(context, autoConnect, connection.callback, BluetoothDevice.TRANSPORT_LE,
+                BluetoothDevice.PHY_LE_1M_MASK, thread)
+        }
+        if (autoConnect) {
+            // 配对过的相机在后台等它出现，不设期限，也不占排队名额；连上后再排队协商。
+            connect()
+        } else {
+            // 新相机排队直连，轮到时才开始算 30 秒期限。
+            endSetup(id)
+            beginSetup(id) {
+                if (!isCurrent(connection)) return@beginSetup endSetup(id)
+                arm(id, CONNECT_TIMEOUT)
+                connect()
+            }
+        }
         updateScan()
         publishDiscovered()
+    }
+
+    /**
+     * 让相机逐台建立连接（连上、协商 MTU、发现服务、握手），其余排队，建立期间暂停扫描。
+     * 安卓蓝牙同时协商几条连接、或一边高频扫描一边连接时，常报错误 133。
+     */
+    private fun beginSetup(id: String, work: () -> Unit) {
+        if (settingUp == null || settingUp == id) {
+            settingUp = id
+            updateScan()
+            work()
+        } else {
+            setupQueue.removeAll { it.first == id }
+            setupQueue.addLast(id to work)
+            Log.i(TAG, "排队等前一台相机连好：$id")
+        }
+    }
+
+    /** 结束这台相机的连接建立，轮到下一台；没有排队的就恢复扫描。 */
+    private fun endSetup(id: String) {
+        setupQueue.removeAll { it.first == id }
+        if (settingUp != id) return
+        settingUp = null
+        val next = setupQueue.removeFirstOrNull()
+        if (next != null) beginSetup(next.first, next.second) else updateScan()
     }
 
     private fun makeDriver(kind: CameraKind, secret: ByteArray?, ad: Advertisement?, number: Int): CameraDriver = when (kind) {
@@ -682,6 +749,7 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
     private fun stop(id: String, reason: String?) {
         deadlines.remove(id)?.let(thread::removeCallbacks)
         stopped += id
+        endSetup(id)
         val connection = connections[id] ?: return
         connection.gatt?.disconnect()
         connection.gatt?.close()
@@ -701,8 +769,14 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
             is AccessoryPhase.Connected -> {
                 deadlines.remove(connection.id)?.let(thread::removeCallbacks)
                 remember(connection)
+                endSetup(connection.id)
+                if (shooting) connection.driver.shooting(true, connection)
             }
-            is AccessoryPhase.Confirming -> arm(connection.id, CONFIRM_TIMEOUT)
+            // 等用户在相机上确认可能要一会儿，链路已经建好，先让下一台连。
+            is AccessoryPhase.Confirming -> {
+                arm(connection.id, CONFIRM_TIMEOUT)
+                endSetup(connection.id)
+            }
             else -> Unit
         }
         Log.i(TAG, "${connection.kind.brand.raw} 状态：$phase")
@@ -730,13 +804,21 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
 
     private fun disconnected(connection: Connection, status: Int) {
         if (!isCurrent(connection)) return
+        endSetup(connection.id)
         handler(AccessoryEvent.Disconnected(connection.id))
-        if (known.any { it.id == connection.id }) {
+        when {
             // 自动重连配对过的相机。
-            open(connection.id, connection.device, connection.kind, connection.name, null, autoConnect = true)
-        } else {
+            known.any { it.id == connection.id } -> open(connection.id, connection.device, connection.kind, connection.name, null, autoConnect = true)
+            // 新相机遇到错误 133 稍等再连，最多 2 次。
+            status == GATT_ERROR && connection.attempt < CONNECT_RETRIES -> {
+                Log.w(TAG, "${connection.kind.brand.raw}：蓝牙错误 133，$RETRY_DELAY_MS ms 后第 ${connection.attempt + 1} 次重连")
+                thread.postDelayed({
+                    if (isCurrent(connection)) open(connection.id, connection.device, connection.kind, connection.name,
+                        discovered[connection.device.address]?.first, autoConnect = false, attempt = connection.attempt + 1)
+                }, RETRY_DELAY_MS)
+            }
             // 处理还没配对成功就断开的情况，比如用户取消了配对。
-            stop(connection.id, if (status == BluetoothGatt.GATT_SUCCESS) context.getString(R.string.acc_connection_lost)
+            else -> stop(connection.id, if (status == BluetoothGatt.GATT_SUCCESS) context.getString(R.string.acc_connection_lost)
             else context.getString(R.string.acc_connection_lost_reason, describe(status)))
         }
     }
@@ -780,6 +862,12 @@ class AccessoryLink(private val context: Context, private val handler: (Accessor
                 arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
             } else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
         private const val CONNECT_TIMEOUT = 30.0
+        /** 给出安卓蓝牙的通用错误码 133（GATT_ERROR），新相机遇到时重连。 */
+        private const val GATT_ERROR = 133
+        private const val CONNECT_RETRIES = 2
+        private const val RETRY_DELAY_MS = 1000L
+        /** 给出用高连接优先级的相机台数，再多的用均衡优先级。 */
+        private const val HIGH_PRIORITY_LIMIT = 2
         /** 限制等用户确认配对的时长（秒）。 */
         private const val CONFIRM_TIMEOUT = 90.0
         private val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")

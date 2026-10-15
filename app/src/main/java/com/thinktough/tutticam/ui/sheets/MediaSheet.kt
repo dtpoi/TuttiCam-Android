@@ -2,6 +2,7 @@ package com.thinktough.tutticam.ui.sheets
 
 import android.net.Uri
 import android.text.format.DateUtils
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -66,9 +67,15 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -77,6 +84,7 @@ import com.thinktough.tutticam.storage.MediaLibrary
 import com.thinktough.tutticam.ui.Format
 import com.thinktough.tutticam.ui.components.SheetPadding
 import com.thinktough.tutticam.ui.components.TcSheet
+import com.thinktough.tutticam.ui.components.sheetVisibleArea
 import com.thinktough.tutticam.ui.theme.TcColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -128,14 +136,19 @@ private fun FolderList(folders: List<MediaLibrary.Folder>?, activeFolder: String
     Text(stringResource(R.string.media_title), style = MaterialTheme.typography.titleLarge,
         modifier = Modifier.padding(start = SheetPadding, end = SheetPadding, top = 16.dp, bottom = 8.dp))
     when {
-        folders == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        folders.isEmpty() -> Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally,
+        // 空状态只在弹层露出的部分里居中，半屏时不会掉到屏幕外。
+        folders == null -> Box(Modifier.fillMaxSize().sheetVisibleArea(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        folders.isEmpty() -> Column(Modifier.fillMaxSize().sheetVisibleArea().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)) {
             Icon(Icons.Rounded.PhotoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(48.dp))
             Text(stringResource(R.string.media_empty), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.media_empty_note), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            // 磁盘上有场景文件夹却一张都读不到，多半是重装前拍的，指去“文件”App 看。
+            if (MediaLibrary.hasFoldersOnDisk()) {
+                SavedFolderLink(R.string.media_orphan_note, Modifier.padding(top = 8.dp), TextAlign.Center)
+            }
         }
         else -> LazyColumn(Modifier.fillMaxSize().navigationBarsPadding()) {
             items(folders, key = { it.name }) { folder ->
@@ -328,4 +341,23 @@ private fun Thumbnail(uri: Uri?, maxPixel: Int, modifier: Modifier, contentScale
             else -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
         }
     }
+}
+
+/** 显示一句带保存位置链接的话，text 里的 %1$s 换成可点的 Documents/TuttiCam，点开系统“文件”App。 */
+@Composable
+internal fun SavedFolderLink(text: Int, modifier: Modifier = Modifier, textAlign: TextAlign? = null) {
+    val context = LocalContext.current
+    val noApp = stringResource(R.string.no_file_manager)
+    val marker = "\u0000"
+    val (before, after) = stringResource(text, marker).split(marker).let { it[0] to it.getOrElse(1) { "" } }
+    val link = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline))
+    val annotated = buildAnnotatedString {
+        append(before)
+        withLink(LinkAnnotation.Clickable("folder", link) {
+            if (!MediaLibrary.openFolder(context)) Toast.makeText(context, noApp, Toast.LENGTH_SHORT).show()
+        }) { append(MediaLibrary.folderLabel.replace("/", "\u2060/\u2060")) }  // 用连接符把路径连成一整段，不在斜杠处换行。
+        append(after)
+    }
+    Text(annotated, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = textAlign,
+        modifier = modifier)
 }

@@ -234,6 +234,7 @@ class AppModel(private val context: Context) {
     fun leave() {
         if (role == Role.Host && host?.running == true) host?.stop()
         agent?.stop()
+        agent?.suspendCamera()
         camera.close()
         motion.stop()
         tickLoop?.cancel()

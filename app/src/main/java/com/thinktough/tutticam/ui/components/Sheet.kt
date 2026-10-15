@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -37,14 +38,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
@@ -68,6 +72,8 @@ fun TcSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) 
         val partial = full / 3f
         val hidden = full
         var offset by remember { mutableFloatStateOf(hidden) }
+        // 弹层和屏幕一样高，往下推了多少，底部就有多少在屏幕外；在布局阶段读取，拖动时不触发重组。
+        val hiddenPx = remember { { offset } }
         var closing by remember { mutableStateOf(false) }
 
         fun settleTo(target: Float, velocity: Float = 0f) {
@@ -172,9 +178,26 @@ fun TcSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) 
                     Surface(Modifier.size(width = 32.dp, height = 4.dp), shape = CircleShape,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)) {}
                 }
-                content()
+                CompositionLocalProvider(LocalSheetHidden provides hiddenPx, content = { content() })
             }
         }
+    }
+}
+
+/** 提供弹层落在屏幕下方、看不见的那段高度（像素）。 */
+private val LocalSheetHidden = staticCompositionLocalOf<() -> Float> { { 0f } }
+
+/** 让内容只铺满弹层露在屏幕里的部分，空状态这类居中内容在半屏时也落在可见区域正中，上拉时跟着移动。 */
+fun Modifier.sheetVisibleArea(): Modifier = composed {
+    val hidden = LocalSheetHidden.current
+    layout { measurable, constraints ->
+        if (!constraints.hasBoundedHeight) {
+            val placeable = measurable.measure(constraints)
+            return@layout layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+        }
+        val visible = (constraints.maxHeight - hidden().roundToInt()).coerceIn(0, constraints.maxHeight)
+        val placeable = measurable.measure(constraints.copy(minHeight = visible, maxHeight = visible))
+        layout(placeable.width, constraints.maxHeight) { placeable.place(0, 0) }
     }
 }
 

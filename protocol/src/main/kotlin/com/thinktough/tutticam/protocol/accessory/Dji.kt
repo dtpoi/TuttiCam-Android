@@ -141,11 +141,19 @@ object OsmoCommand {
 
     /** 列出状态推送 1D02 里的 camera_mode 取值。 */
     object Mode {
+        const val SLOW_MOTION = 0x00
+        const val VIDEO = 0x01
         const val PHOTO = 0x05
+        /** 表示低光视频（超级夜景）。 */
+        const val LOW_LIGHT_VIDEO = 0x28
+        const val PANORAMA_VIDEO = 0x38
         /** 表示 Osmo 360 全景拍照。 */
         const val PANORAMA_PHOTO = 0x3F
-        const val PANORAMA_VIDEO = 0x38
-        const val VIDEO = 0x01
+        /** 表示 Osmo 360 极广角视频。 */
+        const val ULTRA_WIDE_VIDEO = 0x41
+
+        /** 列出录像类模式：开始拍摄时开录、停止拍摄时停录，不按单张快门。 */
+        val VIDEOS = setOf(SLOW_MOTION, VIDEO, LOW_LIGHT_VIDEO, PANORAMA_VIDEO, ULTRA_WIDE_VIDEO)
     }
 
     /** 生成 33 字节的连接请求（0019）载荷。 */
@@ -162,11 +170,20 @@ object OsmoCommand {
     /** 上报拍录键单击（0011），效果等于短按快门，是官方推荐的触发方式。 */
     val shutterClick = byteArrayOf(0x01, 0x01, 0x00, 0x00)
 
+    /** 生成拍录控制命令（1D03）载荷：start 为 true 开始录像，false 停止；device_id 和保留字节照抄官方示例。 */
+    fun recordControl(start: Boolean): ByteArray = DjiProtocol.le32(0x33FF0000L) + byteArrayOf(if (start) 0 else 1, 0, 0, 0, 0)
+
     /** 生成模式切换命令（1D04），device_id 和保留字节照抄官方示例。 */
     fun modeSwitch(mode: Int): ByteArray = DjiProtocol.le32(0xFF330000L) + byteArrayOf(mode.toByte(), 0x01, 0x47, 0x39, 0x36)
 
     /** 订阅相机状态（1D05），按 2 Hz 和状态变化推送。 */
     val statusSubscription = byteArrayOf(0x03, 20, 0, 0, 0, 0)
+
+    /** 列出电源模式设置（001A）的取值。 */
+    object PowerMode {
+        const val NORMAL = 0
+        const val SLEEP = 3
+    }
 }
 
 /** 保存状态推送（1D02）里 App 用到的字段。 */
@@ -181,11 +198,14 @@ data class OsmoStatus(
     val battery: Int,
     /** 记录电源模式，3 表示休眠。 */
     val powerMode: Int,
+    /** 记录还能录多少秒，录像模式下用来代替剩余张数。 */
+    val remainSeconds: Long = 0,
 ) {
     val capturing: Boolean get() = status == 0x03
     val sleeping: Boolean get() = powerMode == 3
     val tooHot: Boolean get() = temperature >= 2
     val photoMode: Boolean get() = mode == OsmoCommand.Mode.PANORAMA_PHOTO || mode == OsmoCommand.Mode.PHOTO
+    val videoMode: Boolean get() = mode in OsmoCommand.Mode.VIDEOS
 
     /** 给出拍照模式下的照片尺寸说明，如 30MP。 */
     val photoSizeTitle: String?
@@ -202,7 +222,7 @@ data class OsmoStatus(
     companion object {
         fun parse(p: ByteArray): OsmoStatus? {
             if (p.size < 38) return null
-            return OsmoStatus(u(p, 0), u(p, 1), u(p, 2), DjiProtocol.readLe32(p, 19), u(p, 30), u(p, 37), u(p, 28))
+            return OsmoStatus(u(p, 0), u(p, 1), u(p, 2), DjiProtocol.readLe32(p, 19), u(p, 30), u(p, 37), u(p, 28), DjiProtocol.readLe32(p, 23))
         }
     }
 }
@@ -211,7 +231,7 @@ data class OsmoStatus(
 
 /**
  * 处理与一台 DJI 相机的握手和命令收发，不依赖蓝牙。
- * 手机发连接请求，相机先应答；用户确认后相机回发请求，手机应答后订阅状态并切到全景拍照。
+ * 手机发连接请求，相机先应答；用户确认后相机回发请求，手机应答后订阅状态。
  */
 class OsmoSession(private val deviceId: Long, private val mac: ByteArray, private val cameraNumber: Int) {
     sealed interface Phase {
@@ -268,6 +288,18 @@ class OsmoSession(private val deviceId: Long, private val mac: ByteArray, privat
         return bytes
     }
 
+    /** 生成让相机休眠的命令（001A）；休眠后不能再给相机发任何数据，否则可能堵塞。 */
+    fun sleep(): ByteArray? {
+        if (phase !is Phase.Connected) return null
+        return command(0x00, 0x1A, byteArrayOf(OsmoCommand.PowerMode.SLEEP.toByte())).first
+    }
+
+    /** 生成开始或停止录像的命令（1D03），连接建立前返回 null。 */
+    fun record(start: Boolean): ByteArray? {
+        if (phase !is Phase.Connected) return null
+        return command(0x1D, 0x03, OsmoCommand.recordControl(start)).first
+    }
+
     fun switchMode(mode: Int): ByteArray? {
         if (phase !is Phase.Connected) return null
         return command(0x1D, 0x04, OsmoCommand.modeSwitch(mode)).first
@@ -294,12 +326,11 @@ class OsmoSession(private val deviceId: Long, private val mac: ByteArray, privat
                     phase = Phase.Rejected
                     return listOf(Output.PhaseChanged(phase))
                 }
-                // 用相同的 SEQ 应答，然后订阅状态、切到全景拍照。
+                // 用相同的 SEQ 应答，然后订阅状态；不动相机模式，拍照、录像由驱动按状态处理。
                 val ack = DjiProtocol.Frame(DjiProtocol.CmdType.ACK, frame.seq, 0x00, 0x19, OsmoCommand.connectionAck(deviceId, cameraNumber))
                 phase = Phase.Connected(OsmoCommand.modelName(cameraDeviceId), cameraDeviceId)
                 val subscribe = command(0x1D, 0x05, OsmoCommand.statusSubscription)
-                val mode = command(0x1D, 0x04, OsmoCommand.modeSwitch(OsmoCommand.Mode.PANORAMA_PHOTO))
-                listOf(Output.Send(DjiProtocol.encode(ack)), Output.PhaseChanged(phase), Output.Send(subscribe.first), Output.Send(mode.first))
+                listOf(Output.Send(DjiProtocol.encode(ack)), Output.PhaseChanged(phase), Output.Send(subscribe.first))
             }
             frame.cmdSet == 0x1D && frame.cmdId == 0x02 -> listOfNotNull(OsmoStatus.parse(p)?.let(Output::Status))
             frame.cmdSet == 0x00 && frame.cmdId == 0x11 && frame.isAck ->

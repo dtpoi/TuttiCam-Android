@@ -118,6 +118,8 @@ class Advertisement(
 data class AccessoryStatus(
     val battery: Int? = null,
     val remainPhotos: Int? = null,
+    /** 记录录像模式下还能录的分钟数；这时相机报的剩余张数是 0，不显示。 */
+    val remainMinutes: Int? = null,
     /** 表示相机正在拍或在保存，此时按不下快门。 */
     val capturing: Boolean = false,
     val warm: Boolean = false,
@@ -127,6 +129,8 @@ data class AccessoryStatus(
     val wrongMode: Int? = null,
     /** 记录 DJI 的模式，和 photoSize 一起组成界面说明。 */
     val djiMode: Int? = null,
+    /** 表示 DJI 在录像类模式：开拍时开录、停拍时停录，录像中不算忙。 */
+    val video: Boolean = false,
     val photoSize: String? = null,
 )
 

@@ -165,25 +165,35 @@ object MediaLibrary {
         runCatching { context.startActivity(Intent.createChooser(intent, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 
-    /** 在系统“文件”App 里打开 Documents/TuttiCam；还没拍过时打开 Documents。没有能打开的应用时返回 false。 */
+    /**
+     * 在系统“文件”App 里打开 Documents/TuttiCam；还没拍过时打开 Documents。
+     * 先指定系统“文件”App，免得弹出“打开方式”；没有它时再交给系统选。没有能打开的应用时返回 false。
+     */
     fun openFolder(context: Context): Boolean {
         val path = if (rootDir.exists()) rootRelative.trimEnd('/') else Environment.DIRECTORY_DOCUMENTS
         val folder = DocumentsContract.buildDocumentUri(EXTERNAL_STORAGE, "primary:$path")
         val root = DocumentsContract.buildRootUri(EXTERNAL_STORAGE, "primary")
         for ((uri, type) in listOf(folder to DocumentsContract.Document.MIME_TYPE_DIR, root to "vnd.android.document/root")) {
-            try {
-                context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                return true
-            } catch (_: ActivityNotFoundException) {
+            for (app in SYSTEM_FILES + null) {
+                try {
+                    context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, type).setPackage(app).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    return true
+                } catch (_: ActivityNotFoundException) {
+                }
             }
         }
         return false
     }
 
+    /** 判断 Documents/TuttiCam 下有没有场景文件夹，用来认出重装前拍的、读不到的照片。 */
+    fun hasFoldersOnDisk(): Boolean = runCatching { rootDir.listFiles()?.any { it.isDirectory } == true }.getOrDefault(false)
+
     /** 返回 Documents/TuttiCam 的显示路径。 */
     val folderLabel = rootRelative.trimEnd('/')
 
     private const val EXTERNAL_STORAGE = "com.android.externalstorage.documents"
+    /** 列出系统“文件”App 的包名：Google 版和 AOSP 版。 */
+    private val SYSTEM_FILES = listOf("com.google.android.documentsui", "com.android.documentsui")
 
     private fun mime(file: MediaFile) = when (file.extension) {
         "heic" -> "image/heic"

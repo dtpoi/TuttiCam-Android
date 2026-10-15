@@ -95,6 +95,9 @@ class CaptureAgent(
         private set
     /** 记录主机从回报里看不到的问题（保存失败、格式退回），随状态发给主机。 */
     private var hostProblem: String? = null
+    /** 记录最近一次开相机的序号，用来认出过时的结果。 */
+    private var openToken = 0
+    private val openLatest = Runnable { openCamera() }
     var snapshot by mutableStateOf(MotionMonitor.Snapshot(false, 0.0, null))
         private set
     var live by mutableStateOf<CameraEngine.Live?>(null)
@@ -162,8 +165,10 @@ class CaptureAgent(
         applyLens(force = true)
     }
 
-    /** 进入后台时关闭相机，回到前台由 prepareCamera 重开。 */
+    /** 进入后台或离开会话时关闭相机，回到前台由 prepareCamera 重开。 */
     fun suspendCamera() {
+        main.removeCallbacks(openLatest)
+        openToken += 1
         cameraReady = false
         camera.cancelPending()
         camera.close()
@@ -188,19 +193,30 @@ class CaptureAgent(
             return
         }
         cameraReady = false
+        // 开会话时会连着改几次镜头，同一轮消息里只开最后一次，免得上一颗相机还没关完就开下一颗被系统拒绝。
+        main.removeCallbacks(openLatest)
+        main.post(openLatest)
+    }
+
+    /** 打开 configuredLens；结果按序号核对，旧一次的结果到得晚时直接丢掉，不会把过时的错误留在界面上。 */
+    private fun openCamera() {
+        val target = configuredLens ?: return
+        val token = ++openToken
         camera.open(target, settings) { error ->
             main.post {
-                if (configuredLens != target) return@post
+                if (token != openToken) return@post
                 if (error != null && target.isDual) {
                     // 系统不支持这对镜头时退回主镜头单拍并提示。
                     val single = LensConfig(target.primary)
                     lensFallback = target to single
                     configuredLens = single
+                    val retry = ++openToken
                     camera.open(single, settings) { again ->
                         main.post {
-                            if (configuredLens != single) return@post
+                            if (retry != openToken) return@post
                             if (again != null) cameraError = again else {
                                 cameraReady = true
+                                cameraError = null
                                 pushParameters()
                             }
                         }
@@ -277,6 +293,7 @@ class CaptureAgent(
         camera.armRaw(true)
         updateLocation()
         if (cameraReady) pushParameters()
+        accessories.setShooting(true)
     }
 
     /** 停止拍摄，并取消还没取到的那一组。 */
@@ -285,6 +302,7 @@ class CaptureAgent(
         camera.cancelPending()
         camera.armRaw(false)
         accessories.cancelPending()
+        accessories.setShooting(false)
         location.stop()
     }
 

@@ -63,6 +63,9 @@ fun djiModeTitle(context: Context, mode: Int): String = when (mode) {
     OsmoCommand.Mode.PHOTO -> context.getString(R.string.dji_mode_photo)
     OsmoCommand.Mode.PANORAMA_VIDEO -> context.getString(R.string.dji_mode_panorama_video)
     OsmoCommand.Mode.VIDEO -> context.getString(R.string.dji_mode_video)
+    OsmoCommand.Mode.SLOW_MOTION -> context.getString(R.string.dji_mode_slow_motion)
+    OsmoCommand.Mode.LOW_LIGHT_VIDEO -> context.getString(R.string.dji_mode_low_light_video)
+    OsmoCommand.Mode.ULTRA_WIDE_VIDEO -> context.getString(R.string.dji_mode_ultra_wide_video)
     else -> context.getString(R.string.dji_mode_other, "0x%02X".format(mode))
 }
 
@@ -119,14 +122,14 @@ class AccessoryHub(private val context: Context) {
 
     val connectedCameras: List<Camera> get() = cameras.filter { it.connected }
     val hasConnected: Boolean get() = cameras.any { it.connected }
-    /** 表示有相机还在拍上一张。 */
-    val busy: Boolean get() = connectedCameras.any { it.status?.capturing == true }
+    /** 表示有相机还在拍上一张；录像模式在录像不算。 */
+    val busy: Boolean get() = connectedCameras.any { it.status?.capturing == true && it.status.video != true }
 
     val briefs: List<AccessoryBrief>
         get() = cameras.map { c ->
             AccessoryBrief(name = displayName(c), number = c.number, code = c.code.text, brand = c.brand.raw, connected = c.connected,
-                battery = c.status?.battery, remainPhotos = c.status?.remainPhotos, capturing = c.status?.capturing ?: false,
-                tooHot = c.status?.tooHot ?: false, sleeping = c.sleeping)
+                battery = c.status?.battery, remainPhotos = c.status?.remainPhotos, remainMinutes = c.status?.remainMinutes, capturing = c.status?.capturing ?: false,
+                tooHot = c.status?.tooHot ?: false, sleeping = c.sleeping, video = c.status?.video?.takeIf { it })
         }
 
     /** 返回状态补充说明，如“全景拍照 · 30MP”。 */
@@ -178,6 +181,12 @@ class AccessoryHub(private val context: Context) {
     }
 
     fun retry(id: String) = link.retry(id)
+
+    /** 通知开始或停止拍摄，录像模式的 DJI 相机据此开录、停录。 */
+    fun setShooting(on: Boolean) = link.setShooting(on)
+
+    /** 让 DJI 相机休眠，休眠期间不给它发快门；要按相机上任意按键唤醒。 */
+    fun sleep(id: String) = link.sleep(id)
 
     /** 忘记相机并重新扫描，下次需要重新配对。 */
     fun forgetAndRescan(id: String) {

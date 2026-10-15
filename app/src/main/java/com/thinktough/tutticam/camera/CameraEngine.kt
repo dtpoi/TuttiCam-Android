@@ -3,9 +3,11 @@ package com.thinktough.tutticam.camera
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.ImageFormat
+import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraDevice.StateCallback
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
@@ -441,10 +443,20 @@ class CameraEngine(context: Context) {
     }
 
     @SuppressLint("MissingPermission")
-    private fun openUnit(unit: CameraUnit, gen: Int, done: (String?) -> Unit) {
+    private fun openUnit(unit: CameraUnit, gen: Int, attempt: Int = 0, done: (String?) -> Unit) {
+        // 刚开就被拒（前一颗相机还没关完、人脸解锁正占着）时稍等再试，不立刻报错。
+        fun retry(reason: Int): Boolean {
+            if (attempt >= OPEN_RETRIES) return false
+            Log.i(TAG, "相机 ${unit.cameraId} 正被占用（$reason），$OPEN_RETRY_MS ms 后重试")
+            camera.postDelayed({ if (gen == generation) openUnit(unit, gen, attempt + 1, done) }, OPEN_RETRY_MS)
+            return true
+        }
         try {
-            manager.openCamera(unit.cameraId, cameraExecutor, object : CameraDevice.StateCallback() {
+            manager.openCamera(unit.cameraId, cameraExecutor, object : StateCallback() {
+                private var opened = false
+
                 override fun onOpened(device: CameraDevice) {
+                    opened = true
                     if (gen != generation) {
                         device.close()
                         return
@@ -464,9 +476,15 @@ class CameraEngine(context: Context) {
                     device.close()
                     if (gen != generation) return
                     if (unit.device === device) unit.device = null
+                    val busy = error == StateCallback.ERROR_MAX_CAMERAS_IN_USE || error == StateCallback.ERROR_CAMERA_IN_USE
+                    if (!opened && busy && retry(error)) return
                     done(text(R.string.camera_error_code, error))
                 }
             })
+        } catch (e: CameraAccessException) {
+            val busy = e.reason == CameraAccessException.MAX_CAMERAS_IN_USE || e.reason == CameraAccessException.CAMERA_IN_USE
+            if (busy && retry(e.reason)) return
+            done(text(R.string.camera_open_failed, e.message ?: e.javaClass.simpleName))
         } catch (e: Exception) {
             done(text(R.string.camera_open_failed, e.message ?: e.javaClass.simpleName))
         }
@@ -981,6 +999,9 @@ class CameraEngine(context: Context) {
 
     companion object {
         private const val TAG = "TuttiCam.Camera"
+        /** 给出相机被占用时的重试次数和间隔，合计约 1.5 秒，够人脸解锁或上一颗相机放手。 */
+        private const val OPEN_RETRIES = 5
+        private const val OPEN_RETRY_MS = 300L
         /** 标记拍摄被取消，这不算“没拍到”。 */
         const val CANCELLED = "cancelled"
 

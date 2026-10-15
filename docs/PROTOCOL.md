@@ -149,7 +149,9 @@ DeviceStatus {                       // 全部字段必填（可选的除外）
 AccessoryBrief {
   name: String, number: Int, code: String, brand: String,   // brand 为 CameraBrand 的取值
   connected: Bool, battery?: Int, remainPhotos?: Int,
-  capturing: Bool, tooHot: Bool, sleeping: Bool
+  remainMinutes?: Int,              // 仅安卓：录像模式下还能录的分钟数；iOS 忽略
+  capturing: Bool, tooHot: Bool, sleeping: Bool,
+  video?: Bool                      // 仅安卓：DJI 在录像模式时为 true，主机不为它多等保存时间；iOS 忽略
 }
 
 PhotoReport {

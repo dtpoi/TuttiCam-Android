@@ -28,7 +28,6 @@ import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Panorama
 import androidx.compose.material.icons.rounded.Sensors
 import androidx.compose.material.icons.rounded.Thermostat
 import androidx.compose.material.icons.rounded.TouchApp
@@ -208,13 +207,23 @@ private fun CameraCard(hub: AccessoryHub, camera: AccessoryHub.Camera, onEdit: (
                 else -> Unit
             }
             if (camera.sleeping) Text(stringResource(R.string.acc_wake), style = MaterialTheme.typography.bodySmall, color = secondary)
+            else if (camera.connected && camera.status?.video == true) {
+                Text(stringResource(R.string.acc_video_note), style = MaterialTheme.typography.bodySmall, color = secondary)
+            }
             if (camera.connected) StatusLine(hub, camera)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 // 连接失败时提供重新连接或忘记后重扫。
                 if (camera.failed) {
                     FilledTonalButton({ hub.retry(camera.id) }) { Text(stringResource(R.string.reconnect)) }
                     OutlinedButton({ hub.forgetAndRescan(camera.id) }) { Text(stringResource(R.string.acc_forget_rescan)) }
                 } else {
+                    // DJI 相机可以在这里休眠，省电；手机发不出能叫醒它的蓝牙广播，要按相机上任意按键唤醒。
+                    if (camera.brand == CameraBrand.Dji && camera.connected && !camera.sleeping) {
+                        OutlinedButton({ hub.sleep(camera.id) }) {
+                            Icon(Icons.Rounded.Bedtime, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text(stringResource(R.string.acc_sleep), Modifier.padding(start = 8.dp))
+                        }
+                    }
                     TextButton({ hub.forget(camera.id) }) { Text(stringResource(R.string.acc_forget), color = TcColors.ProblemRed) }
                 }
             }
@@ -245,7 +254,7 @@ private fun StatusLine(hub: AccessoryHub, camera: AccessoryHub.Camera) {
     val status = camera.status
     val parts = buildList {
         status?.battery?.let { add("$it%") }
-        status?.remainPhotos?.let { add(stringResource(R.string.acc_remaining, it)) }
+        remainingText(status?.remainPhotos, status?.remainMinutes)?.let(::add)
         hub.detail(status)?.takeIf { it.isNotEmpty() }?.let(::add)
         camera.lastRttMs?.let { add(stringResource(R.string.acc_rtt, "%.0f".format(Locale.US, it))) }
     }
@@ -285,7 +294,7 @@ private fun FoundRow(found: AccessoryDiscovery, onConnect: () -> Unit) {
     val context = LocalContext.current
     Row(Modifier.fillMaxWidth().clickable(onClick = onConnect).heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Icon(if (found.name.contains("360")) Icons.Rounded.Panorama else Icons.Rounded.CameraAlt, contentDescription = null,
+        Icon(Icons.Rounded.CameraAlt, contentDescription = null,
             tint = MaterialTheme.colorScheme.primary)
         Column(Modifier.weight(1f)) {
             Text(found.name.ifEmpty { brandGenericName(context, found.kind.brand) }, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
@@ -369,3 +378,13 @@ private fun Notice(icon: ImageVector, text: String, color: Color) {
 @Composable
 internal fun sheetTone(onDark: Color, onLight: Color): Color =
     if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) onDark else onLight
+
+
+/** 给出剩余量：拍照模式是剩余张数，录像模式是还能录多久，如“可录 2 小时 5 分”。 */
+@Composable
+internal fun remainingText(photos: Int?, minutes: Int?): String? = when {
+    minutes != null && minutes >= 60 -> stringResource(R.string.acc_remaining_hours, minutes / 60, minutes % 60)
+    minutes != null -> stringResource(R.string.acc_remaining_minutes, minutes)
+    photos != null -> stringResource(R.string.acc_remaining, photos)
+    else -> null
+}

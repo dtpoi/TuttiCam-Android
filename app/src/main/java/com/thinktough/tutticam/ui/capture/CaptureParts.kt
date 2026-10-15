@@ -23,10 +23,10 @@ import androidx.compose.material.icons.rounded.BatteryUnknown
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.LinkedCamera
-import androidx.compose.material.icons.rounded.Panorama
 import androidx.compose.material.icons.rounded.Photo
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Videocam
 import com.thinktough.tutticam.protocol.LensKind
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CreateNewFolder
@@ -91,6 +91,7 @@ import com.thinktough.tutticam.ui.components.ChromeIconButton
 import com.thinktough.tutticam.ui.components.ChromePillButton
 import com.thinktough.tutticam.ui.components.TcFloatingSurface
 import com.thinktough.tutticam.ui.components.TcFloatingToolbar
+import com.thinktough.tutticam.ui.sheets.remainingText
 import com.thinktough.tutticam.ui.theme.TcColors
 import com.thinktough.tutticam.ui.title
 import kotlinx.coroutines.delay
@@ -251,15 +252,16 @@ fun StatusPanel(model: AppModel, agent: CaptureAgent, overImage: Boolean, modifi
     }
 }
 
-/** 显示一台外接相机的电量和剩余张数；只有 DJI 和 GoPro 能报，没报上来时显示“—”。 */
+/** 显示一台外接相机的电量和剩余张数（录像模式是还能录多久）；只有 DJI 和 GoPro 能报，没报上来时显示“—”。 */
 @Composable
 private fun AccessoryLine(hub: AccessoryHub, camera: AccessoryHub.Camera, tone: StatusTone, style: TextStyle) {
     val battery = camera.status?.battery
-    val remain = camera.status?.remainPhotos
+    val remain = remainingText(camera.status?.remainPhotos, camera.status?.remainMinutes)
+    val video = camera.status?.remainMinutes != null
     val reports = camera.brand == CameraBrand.Dji || camera.brand == CameraBrand.GoPro
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(if (camera.name.contains("360")) Icons.Rounded.Panorama else Icons.Rounded.LinkedCamera, contentDescription = null,
+            Icon(Icons.Rounded.LinkedCamera, contentDescription = null,
                 tint = style.color, modifier = Modifier.size(16.dp))
             Text(stringResource(R.string.acc_connected_line, hub.displayName(camera)), style = style, maxLines = 1,
                 modifier = Modifier.weight(1f, fill = false))
@@ -273,8 +275,9 @@ private fun AccessoryLine(hub: AccessoryHub, camera: AccessoryHub.Camera, tone: 
         }
         if (reports || remain != null) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                Icon(Icons.Rounded.Photo, contentDescription = null, tint = style.color, modifier = Modifier.size(16.dp))
-                Text(remain?.let { stringResource(R.string.acc_remaining, it) } ?: "—", style = style, maxLines = 1)
+                Icon(if (video) Icons.Rounded.Videocam else Icons.Rounded.Photo, contentDescription = null, tint = style.color,
+                    modifier = Modifier.size(16.dp))
+                Text(remain ?: "—", style = style, maxLines = 1)
             }
         }
     }

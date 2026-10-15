@@ -1,6 +1,5 @@
 package com.thinktough.tutticam.ui.sheets
 
-import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,7 +15,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.Panorama
 import androidx.compose.material.icons.rounded.LinkedCamera
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.BatteryStd
@@ -44,13 +42,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.LinkAnnotation
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,7 +51,6 @@ import com.thinktough.tutticam.app.ScreenshotDemo
 import com.thinktough.tutticam.accessory.brandTitle
 import com.thinktough.tutticam.protocol.AccessoryBrief
 import com.thinktough.tutticam.protocol.CameraBrand
-import com.thinktough.tutticam.storage.MediaLibrary
 import com.thinktough.tutticam.ui.components.SheetPadding
 import com.thinktough.tutticam.ui.components.SheetSectionTitle
 import com.thinktough.tutticam.ui.components.TcSheet
@@ -134,7 +125,7 @@ fun DevicesSheet(host: HostCoordinator, onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
             }
             // 在最底下放保存位置，路径是超链接，点开系统“文件”App。
-            item(key = "folder") { SavedFolderLink() }
+            item(key = "folder") { SavedFolderLink(R.string.saved_folder) }
         }
     }
     editingCode?.let { device -> CodeDialog(host, device) { editingCode = null } }
@@ -144,23 +135,6 @@ fun DevicesSheet(host: HostCoordinator, onDismiss: () -> Unit) {
     if (showMedia) MediaSheet(host.agent.store.folder.takeIf { host.agent.running }) { showMedia = false }
 }
 
-/** 显示“本机照片保存在 Documents/TuttiCam”，路径可点。 */
-@Composable
-private fun SavedFolderLink() {
-    val context = LocalContext.current
-    val noApp = stringResource(R.string.no_file_manager)
-    val marker = "\u0000"
-    val (before, after) = stringResource(R.string.saved_folder, marker).split(marker).let { it[0] to it.getOrElse(1) { "" } }
-    val link = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline))
-    val text = buildAnnotatedString {
-        append(before)
-        withLink(LinkAnnotation.Clickable("folder", link) {
-            if (!MediaLibrary.openFolder(context)) Toast.makeText(context, noApp, Toast.LENGTH_SHORT).show()
-        }) { append(MediaLibrary.folderLabel) }
-        append(after)
-    }
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
 
 @Composable
 private fun DeviceCard(host: HostCoordinator, device: DeviceEntry, onCode: () -> Unit, onLens: () -> Unit) {
@@ -214,7 +188,7 @@ private fun DeviceCard(host: HostCoordinator, device: DeviceEntry, onCode: () ->
             // 每台外接相机一行：名字、编号、品牌、电量、剩余张数、状态。
             for (accessory in device.status?.accessories ?: emptyList()) {
                 val attention = !accessory.connected || accessory.tooHot || accessory.sleeping
-                Meta(if (accessory.name.contains("360")) Icons.Rounded.Panorama else Icons.Rounded.LinkedCamera, accessoryText(accessory),
+                Meta(Icons.Rounded.LinkedCamera, accessoryText(accessory),
                     if (attention) sheetTone(TcColors.MovingOrange, TcColors.MovingOrangeOnLight) else null)
             }
             device.status?.cameraError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = TcColors.ProblemRed) }
@@ -234,7 +208,7 @@ private fun accessoryText(a: AccessoryBrief): String {
         CameraBrand.entries.firstOrNull { it.raw == a.brand }?.let { add(brandTitle(context, it)) }
         if (!a.connected) add(stringResource(R.string.acc_device_none))
         a.battery?.let { add("$it%") }
-        a.remainPhotos?.let { add(stringResource(R.string.acc_remaining, it)) }
+        remainingText(a.remainPhotos, a.remainMinutes)?.let(::add)
         if (a.capturing) add(stringResource(R.string.acc_capturing))
         if (a.tooHot) add(stringResource(R.string.acc_hot_short))
         if (a.sleeping) add(stringResource(R.string.acc_state_sleeping))

@@ -244,9 +244,13 @@ data class AccessoryBrief(
     val connected: Boolean,
     val battery: Int? = null,
     val remainPhotos: Int? = null,
+    /** 记录录像模式下还能录的分钟数；只有安卓发，iOS 忽略。 */
+    val remainMinutes: Int? = null,
     val capturing: Boolean,
     val tooHot: Boolean,
     val sleeping: Boolean = false,
+    /** 在录像模式时为 true，主机不用为它多等保存时间；只有安卓发，不在录像模式时省略，iOS 忽略。 */
+    val video: Boolean? = null,
 )
 
 @Serializable

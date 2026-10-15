@@ -392,8 +392,8 @@ class HostCoordinator(
             return
         }
         if (!running) return
-        // 有外接相机时间隔加上额外等待，留给相机保存。
-        val accessoryInSession = devices.any { d -> d.connected && d.status?.accessories?.any { it.connected } == true }
+        // 有外接相机在拍照时间隔加上额外等待，留给相机保存；录像模式的不用等。
+        val accessoryInSession = devices.any { d -> d.connected && d.status?.accessories?.any { it.connected && it.video != true } == true }
         if (now - lastRoundAt < settings.minInterval + if (accessoryInSession) settings.osmoExtraWait else 0.0) {
             waitingReason = null
             return
