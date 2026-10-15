@@ -1,0 +1,26 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+.kotlin/
+captures/
+
+# 签名
+*.jks
+*.keystore
+keystore.properties
+
+# IDE
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+
+# 图标原稿不放进仓库
+tools/icon/*.svg
+
+# 工具的编译产物
+tools/ios-golden/.build/

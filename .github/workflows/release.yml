@@ -1,0 +1,87 @@
+# 推送 v* 标签时：测试，编签名的 APK 和 AAB，并创建 GitHub Release。
+# 需要仓库 Secrets：TUTTICAM_KEYSTORE_BASE64、TUTTICAM_KEYSTORE_PASSWORD、TUTTICAM_KEY_ALIAS、TUTTICAM_KEY_PASSWORD（见 docs/RELEASING.md）。
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 检查标签与 versionName 一致
+        run: |
+          version=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::标签 $GITHUB_REF_NAME 与 versionName $version 不一致"
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: true
+
+      - name: 安装 Android SDK 平台
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.2" "build-tools;37.0.0"
+
+      - name: 还原签名密钥
+        env:
+          KEYSTORE_BASE64: ${{ secrets.TUTTICAM_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::缺少签名 Secrets，见 docs/RELEASING.md"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: 测试并构建发布包
+        env:
+          TUTTICAM_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          TUTTICAM_KEYSTORE_PASSWORD: ${{ secrets.TUTTICAM_KEYSTORE_PASSWORD }}
+          TUTTICAM_KEY_ALIAS: ${{ secrets.TUTTICAM_KEY_ALIAS }}
+          TUTTICAM_KEY_PASSWORD: ${{ secrets.TUTTICAM_KEY_PASSWORD }}
+        run: ./gradlew :protocol:test :app:testDebugUnitTest :app:assembleRelease :app:bundleRelease
+
+      - name: 删除签名密钥
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: 整理产物
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/TuttiCam-$GITHUB_REF_NAME.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "dist/TuttiCam-$GITHUB_REF_NAME.aab"
+          cp app/build/outputs/mapping/release/mapping.txt "dist/mapping-$GITHUB_REF_NAME.txt"
+
+      # AAB 用于上传应用商店，mapping.txt 用于还原混淆后的崩溃堆栈，都只放在构建产物里。
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ github.ref_name }}
+          path: dist/
+
+      # 说明取自 CHANGELOG.md 里“## <标签> · 日期”这一节，找不到时按提交记录自动生成。
+      - name: 创建 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          awk -v tag="$GITHUB_REF_NAME" '/^## /{p = ($2 == tag); next} p' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if [ -s "$RUNNER_TEMP/notes.md" ]; then
+            notes=(--notes-file "$RUNNER_TEMP/notes.md")
+          else
+            notes=(--generate-notes)
+          fi
+          gh release create "$GITHUB_REF_NAME" "dist/TuttiCam-$GITHUB_REF_NAME.apk" --verify-tag --title "TuttiCam $GITHUB_REF_NAME" "${notes[@]}"

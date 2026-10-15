@@ -1,0 +1,22 @@
+linkHello	{"key":"6F1C0A7E-2B4D-4C1E-9F00-1234567890AB","name":"iPhone 17 Pro"}
+hello	{"hello":{"_0":{"dualCombos":[{"primary":"w","secondary":"uw"}],"lenses":["uw","w","t","f"],"model":"iPhone18,1","name":"iPhone 17 Pro","squareFront":true,"systemVersion":"27.1"}}}
+welcome	{"welcome":{"code":{"group":"A","number":2},"index":2}}
+lensRequest	{"lensRequest":{"_0":{"primary":"uw"}}}
+rejected	{"rejected":{"reason":"会话已满（最多 8 台设备）"}}
+settingsDefault	{"settings":{"_0":{"accessoryLeads":{},"exposureBias":0,"forceSync":false,"format":"jpeg","frontFraming":"square","handheld":{"blurPx":3,"holdSeconds":0.3},"hostStillnessOnly":false,"iso":100,"lens":{"primary":"w"},"lensOverrides":{},"lockAll":false,"lockFocus":false,"lockWhiteBalance":false,"manualISO":false,"manualShutter":false,"minInterval":2,"osmoExtraWait":1,"osmoLead":0,"prefer48MP":true,"quality":"balanced","saveToPhotos":false,"shutterSeconds":0.004,"stability":"tripod","syncInterval":20,"triggerLead":0.25,"tripod":{"blurPx":1,"holdSeconds":0.3},"whiteBalanceKelvin":5500,"whiteBalanceTint":0,"writeAttitude":false,"writeLocation":true,"writePhotoJSON":false}}}
+settingsCustom	{"settings":{"_0":{"accessoryLeads":{"sony":0.12},"exposureBias":-0.7,"forceSync":false,"format":"rawHeic","frontFraming":"wide43","handheld":{"blurPx":3,"holdSeconds":0.3},"hostStillnessOnly":false,"iso":250,"lens":{"primary":"w","secondary":"uw"},"lensOverrides":{"2":{"primary":"f"},"5":{"primary":"t"}},"lockAll":false,"lockFocus":false,"lockWhiteBalance":false,"manualISO":false,"manualShutter":true,"minInterval":2,"osmoExtraWait":1,"osmoLead":0.05,"prefer48MP":true,"quality":"quality","saveToPhotos":false,"shutterSeconds":0.008,"stability":"off","syncInterval":20,"triggerLead":0.25,"tripod":{"blurPx":1,"holdSeconds":0.3},"whiteBalanceKelvin":5600,"whiteBalanceTint":3,"writeAttitude":false,"writeLocation":true,"writePhotoJSON":false}}}
+ping	{"ping":{"seq":7,"t0":1234.567891}}
+pong	{"pong":{"seq":7,"t0":1234.567891,"t1":88.125,"t2":88.1251}}
+status	{"status":{"_0":{"accessories":[{"battery":87,"brand":"dji","capturing":false,"code":"D01","connected":true,"name":"Osmo360-624C","number":1,"sleeping":false,"tooHot":false}],"battery":0.82,"blurPx":0.42,"cameraReady":true,"freeBytes":112000000000,"lens":{"primary":"w"},"ready":true,"still":true,"thermal":1}}}
+statusBare	{"status":{"_0":{"accessories":[],"battery":-1,"blurPx":0,"cameraError":"相机未就绪","cameraReady":false,"freeBytes":0,"ready":true,"still":false,"thermal":0}}}
+syncQuality	{"syncQuality":{"errorMs":1.55,"rttMs":3.1}}
+start	{"start":{"session":"场景01_20261014_153000"}}
+renameFolder	{"renameFolder":{"from":"场景01_20261014_153000","to":"客厅_20261014_153000"}}
+stop	{"stop":{}}
+schedule	{"schedule":{"hostTime":98.75,"round":12}}
+report	{"report":{"_0":{"deviceIndex":2,"missed":false,"photos":[{"blurPx":0.42,"file":"r0012_A02_w.jpg","lens":"w","moving":false,"offsetMs":0.4},{"file":"r0012_A02_uw.jpg","lens":"uw","moving":true}],"round":12}}}
+reportMissed	{"report":{"_0":{"deviceIndex":3,"error":"尚未对时","missed":true,"photos":[],"round":13}}}
+resolve	{"resolve":{"keep":true,"round":12}}
+udpPort	{"udpPort":{"_0":54321}}
+datagramPong	{"m":{"pong":{"seq":1,"t0":1,"t1":2,"t2":3}},"p":"host"}
+datagramStatus	{"m":{"status":{"_0":{"accessories":[{"battery":87,"brand":"dji","capturing":false,"code":"D01","connected":true,"name":"Osmo360-624C","number":1,"sleeping":false,"tooHot":false}],"battery":0.82,"blurPx":0.42,"cameraReady":true,"freeBytes":112000000000,"lens":{"primary":"w"},"ready":true,"still":true,"thermal":1}}},"p":"6F1C0A7E-2B4D-4C1E-9F00-1234567890AB"}
